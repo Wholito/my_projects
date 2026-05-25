@@ -1,0 +1,11 @@
+**/.dart_tool/
+**/.pub/
+**/build/
+**/.flutter-plugins-dependencies
+**/.idea/
+**/*.iml
+**/.DS_Store
+**/local.properties
+**/node_modules/
+**/.gradle/
+**/coverage/

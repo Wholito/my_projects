@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Auto Parts Catalog</string>
+    
+    <!-- Main -->
+    <string name="main_title">Auto Parts Catalog</string>
+    <string name="add_part">Add Part</string>
+    <string name="settings">Settings</string>
+    <string name="no_parts">No parts yet. Tap + to add.</string>
+    <string name="no_matches">No parts match filters.</string>
+    <string name="filter_search_hint">Search</string>
+    <string name="filter_sort">Sort</string>
+    <string name="filter_category">Category</string>
+    <string name="filter_category_all">All categories</string>
+    <string name="filter_date_from">Date from (yyyy-MM-dd)</string>
+    <string name="filter_date_to">Date to (yyyy-MM-dd)</string>
+    <string name="sort_id_desc">Newest first (id)</string>
+    <string name="sort_date_desc">Date ↓</string>
+    <string name="sort_date_asc">Date ↑</string>
+    <string name="sort_title_asc">Title A–Z</string>
+    <string name="filter_favorites_only">Favorites only</string>
+    <string name="favorite_toggle">Toggle favorite</string>
+    <string name="online_catalog_title">NBRB exchange rates</string>
+    
+    <!-- Detail -->
+    <string name="part_title">Title</string>
+    <string name="part_description">Description</string>
+    <string name="part_date">Date</string>
+    <string name="part_category">Category</string>
+    <string name="part_image_url">Image URL</string>
+    <string name="part_image">Part image</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit_part">Edit Part</string>
+    <string name="new_part">New Part</string>
+    
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="language_settings">Language</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_system">System default</string>
+    <string name="theme_settings">Theme</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System default</string>
+    <string name="refresh">Refresh</string>
+    <string name="api_empty">No exchange rates in cache yet. Pull to refresh when online.</string>
+    <string name="api_status_online">Online: rates loaded from NBRB API</string>
+    <string name="api_status_cache">Network error: cached data shown</string>
+    <string name="api_status_offline">Offline: showing cached NBRB rates</string>
+    <string name="nbrb_cached_at">Cached: %1$s</string>
+    
+    <!-- Splash -->
+    <string name="splash_loading">Loading…</string>
+    
+    <!-- Common -->
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="delete_confirm">Delete this part?</string>
+
+    <!-- Reminders -->
+    <string name="reminder_settings_title">Scheduled reminder</string>
+    <string name="reminder_enable">Daily reminder</string>
+    <string name="reminder_pick_time">Choose time</string>
+    <string name="reminder_time_summary">Time: %1$s (24h)</string>
+    <string name="reminder_notification_title">Catalog</string>
+    <string name="reminder_notification_text">Review or update your parts list.</string>
+    <string name="reminder_channel_name">Reminders</string>
+    <string name="reminder_channel_desc">Scheduled catalog reminders</string>
+
+    <!-- Firestore / cloud -->
+    <string name="cloud_sync_title">Cloud</string>
+    <string name="cloud_sync_upload">Upload to cloud</string>
+    <string name="cloud_sync_download">Download from cloud</string>
+    <string name="firestore_sync_up_ok">Upload finished</string>
+    <string name="firestore_sync_down_ok">Download finished</string>
+    <string name="firestore_sync_error">Sync error: %1$s</string>
+    <string name="firestore_sync_no_local_data">No local records to upload.</string>
+    <string name="firestore_not_configured">Cloud is not configured. Replace app/google-services.json with your Firebase file.</string>
+    <string name="firestore_permission_denied">PERMISSION_DENIED: check Firestore Rules and Firebase project config.</string>
+    <string name="auth_required_for_cloud">Sign in to use cloud sync.</string>
+
+    <!-- Auth -->
+    <string name="auth_title">Sign in</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_login">Log in</string>
+    <string name="auth_register">Register</string>
+    <string name="auth_fill_fields">Enter email and password</string>
+    <string name="auth_password_hint">Password must be at least 6 characters</string>
+    <string name="auth_error">Auth error: %1$s</string>
+    <string name="auth_account_section">Account</string>
+    <string name="auth_signed_as">Signed in as %1$s</string>
+    <string name="auth_not_signed_in">Not signed in</string>
+    <string name="auth_sign_out">Sign out</string>
+
+    <!-- Device APIs -->
+    <string name="part_take_photo">Take photo</string>
+    <string name="camera_error">Could not prepare camera file</string>
+
+    <!-- Share -->
+    <string name="share_part">Share part</string>
+</resources>
