@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1047288948740",
+    "project_id": "autoparts-catalog",
+    "storage_bucket": "autoparts-catalog.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1047288948740:android:b03b0ead7090ddcfe52d51",
+        "android_client_info": {
+          "package_name": "com.autoparts.catalog"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPOp9J0U-yHJFLA4pCQLAiq6XmdCPfNIk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,70 @@
+<<<<<<< HEAD
+# Firebase
+firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+
+# Flutter
+.dart_tool/
+.build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+*.lock
+
+# Build output
+build/
+app.*.symbols
+*.aab
+*.apk
+*.ipa
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
+
+# Environment files
+.env
+*.env
+keys.dart
+secrets.dart
+
+# Android
+android/local.properties
+android/.gradle/
+android/.idea/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# iOS/macOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/Generated.xcconfig
+macos/Flutter/flutter_export_environment.sh
+
+# Temporary files
+*.log
+*.pid
+*.tmp
+=======
+**/.dart_tool/
+**/.pub/
+**/build/
+**/.flutter-plugins-dependencies
+**/.idea/
+**/*.iml
+**/.DS_Store
+**/local.properties
+**/node_modules/
+**/.gradle/
+**/coverage/
+>>>>>>> 1131aab57795afa25b1ba2991777ffa01bc80e6f
