@@ -38,16 +38,23 @@ class GameService {
         .where('hostId', isEqualTo: hostId)
         .where('phase', isNotEqualTo: 'finished')
         .get();
-    if (existingGames.docs.isNotEmpty) {
-      throw Exception('У вас уже есть незавершённая игра. Вернитесь в неё или дождитесь завершения.');
+    for (final doc in existingGames.docs) {
+      final data = doc.data();
+      if (data['guestId'] == null) {
+        await _games.doc(doc.id).delete();
+      } else {
+        throw Exception('У вас уже есть активная игра с другим игроком.');
+      }
     }
-    final existingAsGuest = await _games
+
+    final guestGames = await _games
         .where('guestId', isEqualTo: hostId)
         .where('phase', isNotEqualTo: 'finished')
         .get();
-    if (existingAsGuest.docs.isNotEmpty) {
-      throw Exception('Вы уже участвуете в игре как гость. Дождитесь завершения.');
+    if (guestGames.docs.isNotEmpty) {
+      throw Exception('Вы уже участвуете в игре как гость.');
     }
+
     final doc = await _games.add({
       'hostId': hostId,
       'guestId': null,
@@ -66,6 +73,8 @@ class GameService {
       'pussyMode': false,
       'guessedItems': [],
     });
+
+    await _setActiveGame(hostId, doc.id);
     return doc.id;
   }
 
@@ -91,7 +100,7 @@ class GameService {
   Future<void> joinGame(String gameId, String guestId) async {
     final guestDoc = await _firestore.collection('users').doc(guestId).get();
     if (guestDoc.data()?['activeGameId'] != null) {
-      throw Exception('Вы уже участвуете в другой игре');
+      throw ('Вы уже участвуете в другой игре');
     }
     final ref = _games.doc(gameId);
     String? hostId;
@@ -101,10 +110,10 @@ class GameService {
       if (!snap.exists) throw ('Игра не найдена или закончена');
       final data = snap.data()!;
       if (data['guestId'] != null) {
-        throw Exception('В игре уже два игрока');
+        throw ('В игре уже два игрока');
       }
       if (data['hostId'] == guestId) {
-        throw Exception('Нельзя присоединиться к своей игре');
+        throw ('Нельзя присоединиться к своей игре');
       }
 
       hostId = data['hostId'] as String;
@@ -121,6 +130,10 @@ class GameService {
       if (theme != null) {
         updates['theme'] = theme;
         updates['phase'] = GamePhase.characterSelection.name;
+        if (theme == GameTheme.brawlStars.id) {
+          updates['pussyMode'] = true;
+          updates['gameMode'] = GameMode.characters.id;
+        }
       } else {
         updates['phase'] = GamePhase.themeSelection.name;
       }
@@ -129,6 +142,7 @@ class GameService {
     });
 
     await _setActiveGame(guestId, gameId);
+    await deleteAllInvitesForUser(guestId);
   }
 
   Future<void> inviteFriendToGame({
@@ -136,18 +150,22 @@ class GameService {
     required String friendId,
     required String hostId,
   }) async {
-    if (friendId == hostId) {
-      throw Exception('Нельзя пригласить самого себя');
+    final oldInvites = await _firestore
+        .collection('gameInvites')
+        .where('gameId', isEqualTo: gameId)
+        .where('fromUserId', isEqualTo: hostId)
+        .where('toUserId', isEqualTo: friendId)
+        .get();
+    for (final doc in oldInvites.docs) {
+      await doc.reference.delete();
     }
-
-    final existingGame = await _findActiveGameBetween(hostId, friendId);
-    if (existingGame != null) {
-      throw Exception('У вас уже есть активная игра с этим другом. Вернитесь в неё.');
+    if (friendId == hostId) {
+      throw ('Нельзя пригласить самого себя');
     }
 
     final friendDoc = await _firestore.collection('users').doc(friendId).get();
     if (friendDoc.exists && friendDoc.data()?['activeGameId'] != null) {
-      throw Exception('Друг уже участвует в другой игре');
+      throw ('Друг уже участвует в другой игре');
     }
 
     final existingInvite = await _firestore
@@ -158,7 +176,7 @@ class GameService {
         .get();
 
     if (existingInvite.docs.isNotEmpty) {
-      throw Exception('Вы уже приглашали этого друга. Дождитесь ответа или отмените приглашение.');
+      throw ('Вы уже приглашали этого друга. Дождитесь ответа или отмените приглашение.');
     }
 
     await _firestore.collection('gameInvites').add({
@@ -263,18 +281,22 @@ class GameService {
     if (theme == null) return {};
 
     String nextPhase;
+    Map<String, dynamic> updates = {
+      'theme': theme,
+      'describerId': hostId,
+      'guesserId': guestId,
+    };
+
     if (theme == GameTheme.brawlStars.id) {
       nextPhase = GamePhase.roleAssignment.name;
+      updates['pussyMode'] = true;
+      updates['gameMode'] = GameMode.characters.id;
     } else {
       nextPhase = GamePhase.modeSelection.name;
     }
 
-    return {
-      'theme': theme,
-      'phase': nextPhase,
-      'describerId': hostId,
-      'guesserId': guestId,
-    };
+    updates['phase'] = nextPhase;
+    return updates;
   }
 
   Future<void> voteTheme({
@@ -322,7 +344,7 @@ class GameService {
       if (!snap.exists) return;
       final data = snap.data()!;
       final hostId = data['hostId'] as String;
-      if (userId != hostId) throw Exception('Только хост может выбрать режим');
+      if (userId != hostId) throw ('Только хост может выбрать режим');
       tx.update(ref, {
         'gameMode': mode.id,
         'phase': GamePhase.roleAssignment.name,
@@ -379,7 +401,7 @@ class GameService {
     required String letter,
   }) async {
     if (!isAllowedLetter(letter)) {
-      throw Exception('Буква недоступна (нельзя ь, ъ, ы)');
+      throw ('Буква недоступна (нельзя ь, ъ, ы)');
     }
     await _games.doc(gameId).update({
       'currentLetter': letter.trim().toLowerCase().replaceAll('ё', 'е'),
@@ -397,13 +419,13 @@ class GameService {
     final game = GameSession.fromMap(gameDoc.id, gameDoc.data()!);
 
     if (game.describerId != describerId) {
-      throw Exception('Только загадывающий может зачесть ответ');
+      throw ('Только загадывающий может зачесть ответ');
     }
     if (game.guesserId != guesserId) {
-      throw Exception('Неверный ID угадывающего');
+      throw ('Неверный ID угадывающего');
     }
     if (game.phase != GamePhase.playing) {
-      throw Exception('Игра не в активной фазе');
+      throw ('Игра не в активной фазе');
     }
 
     final batch = _firestore.batch();
@@ -439,13 +461,13 @@ class GameService {
     final game = GameSession.fromMap(gameDoc.id, gameDoc.data()!);
 
     if (game.describerId != senderId) {
-      throw Exception('Только загадывающий может описывать');
+      throw ('Только загадывающий может описывать');
     }
     if (game.currentLetter == null) {
-      throw Exception('Сначала угадывающий должен выбрать букву');
+      throw ('Сначала угадывающий должен выбрать букву');
     }
     if (!textStartsWithLetter(text, game.currentLetter!)) {
-      throw Exception(
+      throw (
         'Все слова должны начинаться на «${game.currentLetter!.toUpperCase()}»',
       );
     }
@@ -475,7 +497,7 @@ class GameService {
     final game = GameSession.fromMap(gameDoc.id, gameDoc.data()!);
 
     if (game.guesserId != senderId) {
-      throw Exception('Только угадывающий может угадывать');
+      throw ('Только угадывающий может угадывать');
     }
 
     final normalizedGuess = _normalizeString(guess);
@@ -552,25 +574,28 @@ class GameService {
     await _games.doc(gameId).update({'pussyMode': enabled});
   }
 
-  Future<String?> _findActiveGameBetween(String userId1, String userId2) async {
+  Future<String?> findActiveGameBetween(String userId1, String userId2) async {
     final snapshot = await _firestore
         .collection('games')
         .where('phase', isNotEqualTo: 'finished')
         .get();
-
     for (final doc in snapshot.docs) {
-      if (!doc.exists) continue;
       final data = doc.data();
       final hostId = data['hostId'] as String?;
       final guestId = data['guestId'] as String?;
-      if ((hostId == userId1 && guestId == userId2) ||
-          (hostId == userId2 && guestId == userId1)) {
-        return doc.id;
+      if (hostId == userId1 || hostId == userId2) {
+        if (guestId == null || guestId == userId1 || guestId == userId2) {
+          return doc.id;
+        }
       }
     }
     return null;
   }
 
+
+  Future<DocumentSnapshot> getGame(String gameId) {
+    return _games.doc(gameId).get();
+  }
 
   Stream<Map<String, dynamic>?> watchActiveGameDetails(String userId) {
     return _firestore.collection('users').doc(userId).snapshots().asyncMap((userSnapshot) async {
@@ -611,6 +636,48 @@ class GameService {
       };
     });
   }
+  Future<void> clearActiveGame(String userId) async {
+    await _clearActiveGame(userId);
+  }
 
+  Future<void> deleteGame(String gameId) async {
+    final ref = _games.doc(gameId);
+    final doc = await ref.get();
+    if (!doc.exists) return;
+    final game = GameSession.fromMap(gameId, doc.data()!);
+    final batch = _firestore.batch();
+    final messages = await ref.collection('messages').get();
+    for (final msg in messages.docs) batch.delete(msg.reference);
+    final invites = await _firestore.collection('gameInvites').where('gameId', isEqualTo: gameId).get();
+    for (final inv in invites.docs) batch.delete(inv.reference);
+    batch.delete(ref);
+    await batch.commit();
+    await _clearActiveGame(game.hostId);
+    if (game.guestId != null) await _clearActiveGame(game.guestId!);
+  }
+
+  Future<void> cleanupPendingInvites(String gameId, String hostId, String friendId) async {
+    final invites = await _firestore
+        .collection('gameInvites')
+        .where('gameId', isEqualTo: gameId)
+        .where('fromUserId', isEqualTo: hostId)
+        .where('toUserId', isEqualTo: friendId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final batch = _firestore.batch();
+    for (final inv in invites.docs) batch.delete(inv.reference);
+    await batch.commit();
+  }
+
+  Future<void> deleteAllInvitesForUser(String userId) async {
+    final invites = await _firestore
+        .collection('gameInvites')
+        .where('toUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final batch = _firestore.batch();
+    for (final inv in invites.docs) batch.delete(inv.reference);
+    await batch.commit();
+  }
 }
 

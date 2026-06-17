@@ -161,7 +161,14 @@ class _SelectedObjectCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text('Вы загадали: $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Flexible(
+                child: Text(
+                  'Вы загадали: $name',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
+                ),
+              ),
             ],
           ),
         ),

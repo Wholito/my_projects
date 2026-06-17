@@ -60,10 +60,10 @@ class FriendsService {
   }) async {
     final friend = await findByFriendCode(friendCode);
     if (friend == null) {
-      throw Exception('Игрок с таким кодом не найден');
+      throw ('Игрок с таким кодом не найден');
     }
     if (friend.id == currentUserId) {
-      throw Exception('Нельзя добавить себя в друзья');
+      throw ('Нельзя добавить себя в друзья');
     }
 
     final batch = _firestore.batch();

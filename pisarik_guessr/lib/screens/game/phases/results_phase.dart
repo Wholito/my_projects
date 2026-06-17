@@ -44,15 +44,12 @@ class _ResultsPhaseState extends State<ResultsPhase> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final won = widget.game.winnerId == context.read<AppState>().user!.id;
-
     final isItemMode = widget.game.gameMode == GameMode.items;
     final selectedItem = isItemMode ? ItemRepository.findById(widget.game.characterId) : null;
     final selectedCharacter = !isItemMode ? CharacterRepository.findById(widget.game.characterId) : null;
-
     final displayName = isItemMode
         ? (selectedItem as GameItem?)?.name ?? 'Не выбран'
         : (selectedCharacter as GameCharacter?)?.name ?? 'Не выбран';
-
     final imageAsset = isItemMode
         ? (selectedItem as GameItem?)?.imageAsset
         : (selectedCharacter as GameCharacter?)?.imageAsset;
@@ -140,7 +137,7 @@ class _ResultsPhaseState extends State<ResultsPhase> with SingleTickerProviderSt
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             FilledButton(
               onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
               child: const Text('На главную'),

@@ -7,5 +7,8 @@
 | [AutoPartsCatalog](AutoPartsCatalog/) | Каталог автозапчастей, Firebase, избранное |
 | [WeatherApp](WeatherApp/) | Погода: прогноз, избранные города, RU/EN |
 | [Shadow_Find](Shadow_Find/) | Shadow Find — geo-игра с картой и друзьями |
+| [Pisarick_guessr](pisarick_guessr/) | Онлайн-игра с друзьями |
 
-Каждый проект независим: свой `pubspec.yaml` / Gradle, сборка и настройки Firebase (если есть).
+Каждый проект независим: свой `pubspec.yaml` / Gradle, сборка и настройки Firebase.
+
+Файлы для установки в релизе

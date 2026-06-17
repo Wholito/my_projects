@@ -52,14 +52,14 @@ class AuthService {
 
   Future<void> updateDisplayName(String newName) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw ('Пользователь не авторизован');
     await user.updateDisplayName(newName);
     await _firestore.collection('users').doc(user.uid).update({'displayName': newName});
   }
 
   Future<void> updatePhotoUrl(String photoUrl) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Пользователь не авторизован');
+    if (user == null) throw ('Пользователь не авторизован');
     await user.updatePhotoURL(photoUrl);
     await _firestore.collection('users').doc(user.uid).update({'photoURL': photoUrl});
   }
@@ -83,7 +83,7 @@ class AuthService {
     final doc =
     await _firestore.collection('users').doc(credential.user!.uid).get();
     if (!doc.exists) {
-      throw Exception('Профиль не найден');
+      throw ('Профиль не найден');
     }
     return AppUser.fromMap(credential.user!.uid, doc.data()!);
   }
@@ -102,6 +102,6 @@ class AuthService {
           .get();
       if (existing.docs.isEmpty) return code;
     }
-    throw Exception('Не удалось создать код друга');
+    throw ('Не удалось создать код друга');
   }
 }

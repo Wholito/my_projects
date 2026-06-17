@@ -3,11 +3,18 @@ import 'package:flutter/services.dart';
 class RussianWordLoader {
   static List<String>? _words;
   static final Map<String, List<String>> _wordsByLetter = {};
+  static String? _lastError;
 
   static Future<List<String>> getWords() async {
     if (_words != null) return _words!;
-    final data = await rootBundle.loadString('assets/russian_words.txt');
-    _words = data.split('\n').where((w) => w.trim().isNotEmpty).toList();
+    try {
+      final data = await rootBundle.loadString('assets/russian_words.txt');
+      _words = data.split('\n').where((w) => w.trim().isNotEmpty).toList();
+      _lastError = null;
+    } catch (e) {
+      _lastError = 'Ошибка загрузки слов: $e';
+      _words = [];
+    }
     return _words!;
   }
 
@@ -21,4 +28,6 @@ class RussianWordLoader {
     _wordsByLetter[normalized] = filtered;
     return filtered;
   }
+
+  static String? get lastError => _lastError;
 }

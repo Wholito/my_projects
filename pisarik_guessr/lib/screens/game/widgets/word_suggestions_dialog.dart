@@ -10,9 +10,14 @@ class WordSuggestionsDialog extends StatefulWidget {
   State<WordSuggestionsDialog> createState() => _WordSuggestionsDialogState();
 }
 
-class _WordSuggestionsDialogState extends State<WordSuggestionsDialog> with SingleTickerProviderStateMixin {
+class _WordSuggestionsDialogState extends State<WordSuggestionsDialog>
+    with SingleTickerProviderStateMixin {
   late AnimationController _closeController;
   late Animation<double> _closeAnimation;
+  int _displayLimit = 50;
+  late ScrollController _scrollController;
+  static final Map<String, double> _scrollOffsets = {};
+  bool _restored = false;
 
   @override
   void initState() {
@@ -24,10 +29,19 @@ class _WordSuggestionsDialogState extends State<WordSuggestionsDialog> with Sing
     _closeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(parent: _closeController, curve: Curves.easeIn),
     );
+    _scrollController = ScrollController();
+
+    _scrollController.addListener(() {
+      final key = 'words_${widget.letter}';
+      if (_scrollController.hasClients) {
+        _scrollOffsets[key] = _scrollController.offset;
+      }
+    });
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _closeController.dispose();
     super.dispose();
   }
@@ -45,7 +59,79 @@ class _WordSuggestionsDialogState extends State<WordSuggestionsDialog> with Sing
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+
+        final error = RussianWordLoader.lastError;
+        if (error != null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'Не удалось загрузить словарь',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Закрыть'),
+                ),
+              ],
+            ),
+          );
+        }
+
         final words = snapshot.data ?? [];
+        final displayWords = words.take(_displayLimit).toList();
+        final hasMore = words.length > _displayLimit;
+
+        if (words.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.info, size: 48, color: Colors.white54),
+                const SizedBox(height: 16),
+                Text(
+                  'Нет слов на букву "${widget.letter.toUpperCase()}"',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Закрыть'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (!_restored && snapshot.connectionState == ConnectionState.done) {
+          _restored = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final key = 'words_${widget.letter}';
+            if (_scrollOffsets.containsKey(key) && _scrollController.hasClients) {
+              Future.delayed(const Duration(milliseconds: 50), () {
+                if (_scrollController.hasClients) {
+                  final maxExtent = _scrollController.position.maxScrollExtent;
+                  final target = _scrollOffsets[key]!.clamp(0.0, maxExtent);
+                  _scrollController.jumpTo(target);
+                }
+              });
+            }
+          });
+        }
+
         return AnimatedBuilder(
           animation: _closeAnimation,
           builder: (context, child) {
@@ -55,7 +141,9 @@ class _WordSuggestionsDialogState extends State<WordSuggestionsDialog> with Sing
             );
           },
           child: Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             child: Container(
               width: MediaQuery.of(context).size.width * 0.8,
               height: MediaQuery.of(context).size.height * 0.6,
@@ -63,29 +151,31 @@ class _WordSuggestionsDialogState extends State<WordSuggestionsDialog> with Sing
               child: Column(
                 children: [
                   Text(
-                    'Слова на букву "${widget.letter.toUpperCase()}"',
+                    'Слова на букву "${widget.letter.toUpperCase()}" (${words.length})',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 12),
                   Expanded(
-                    child: words.isEmpty
-                        ? const Center(child: Text('Нет слов в словаре'))
-                        : GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 2,
-                      ),
-                      itemCount: words.length,
-                      itemBuilder: (context, index) => Card(
-                        child: Center(
-                          child: Flexible(
-                            child: Padding(
-                              padding: const EdgeInsets.all(3),
-                              child: Text(words[index], textAlign: TextAlign.center),
-                            ),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      itemCount: displayWords.length + (hasMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == displayWords.length) {
+                          return TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _displayLimit += 50;
+                              });
+                            },
+                            child: const Text('Показать ещё...'),
+                          );
+                        }
+                        return Card(
+                          child: ListTile(
+                            title: Text(displayWords[index]),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),

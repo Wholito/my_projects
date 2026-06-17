@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Firebase
 firebase_options.dart
 android/app/google-services.json
@@ -55,16 +54,3 @@ macos/Flutter/flutter_export_environment.sh
 *.log
 *.pid
 *.tmp
-=======
-**/.dart_tool/
-**/.pub/
-**/build/
-**/.flutter-plugins-dependencies
-**/.idea/
-**/*.iml
-**/.DS_Store
-**/local.properties
-**/node_modules/
-**/.gradle/
-**/coverage/
->>>>>>> 1131aab57795afa25b1ba2991777ffa01bc80e6f

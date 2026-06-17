@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pisarik_guessr/models/game_mode.dart';
 import 'package:pisarik_guessr/models/game_session.dart';
+import 'package:pisarik_guessr/models/game_theme.dart';
 import 'package:pisarik_guessr/providers/app_state.dart';
 
 class ModeSelectionPhase extends StatefulWidget {
@@ -16,6 +17,19 @@ class ModeSelectionPhase extends StatefulWidget {
 
 class _ModeSelectionPhaseState extends State<ModeSelectionPhase> {
   bool _pussyMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.game.theme == GameTheme.brawlStars) {
+      _pussyMode = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final userId = context.read<AppState>().user!.id;
+        context.read<AppState>().game.selectMode(widget.gameId, userId, GameMode.characters);
+        context.read<AppState>().game.setPussyMode(widget.gameId, true);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +47,9 @@ class _ModeSelectionPhaseState extends State<ModeSelectionPhase> {
         ),
       );
     }
+
+    final isBrawlStars = widget.game.theme == GameTheme.brawlStars;
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 550),
@@ -48,42 +65,54 @@ class _ModeSelectionPhaseState extends State<ModeSelectionPhase> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              Card(
-                child: CheckboxListTile(
-                  value: _pussyMode,
-                  onChanged: (val) => setState(() => _pussyMode = val ?? false),
-                  title: const Text('Pussy Mode'),
-                  secondary: const Icon(Icons.child_care_outlined),
+              if (!isBrawlStars)
+                Card(
+                  child: CheckboxListTile(
+                    value: _pussyMode,
+                    onChanged: (val) => setState(() => _pussyMode = val ?? false),
+                    title: const Text('Pussy Mode'),
+                    secondary: const Icon(Icons.child_care_outlined),
+                  ),
                 ),
-              ),
               const SizedBox(height: 24),
-              _ModeButton(
-                normalIcon: 'assets/characters/dota2/npc_dota_hero_pudge_alt1_png.png',
-                pussyIcon: 'assets/characters/dota2/npc_dota_hero_pudge_persona1_png.png',
-                label: 'Герои',
-                baseColor: const Color(0xFFFF8C00),
-                isPussyMode: _pussyMode,
-                onTap: () async {
-                  await context.read<AppState>().game.selectMode(widget.gameId, userId, GameMode.characters);
-                  if (_pussyMode) {
-                    await context.read<AppState>().game.setPussyMode(widget.gameId, true);
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              _ModeButton(
-                normalIcon: 'assets/items/dota/aegis_png.png',
-                pussyIcon: 'assets/items/dota/pogo_stick_png.png',
-                label: 'Предметы',
-                baseColor: const Color(0xFFFF4500),
-                isPussyMode: _pussyMode,
-                onTap: () async {
-                  await context.read<AppState>().game.selectMode(widget.gameId, userId, GameMode.items);
-                  if (_pussyMode) {
-                    await context.read<AppState>().game.setPussyMode(widget.gameId, true);
-                  }
-                },
-              ),
+              if (isBrawlStars)
+                _ModeButton(
+                  normalIcon: 'assets/characters/brawl_stars/shelly.png',
+                  pussyIcon: 'assets/characters/brawl_stars/shelly.png',
+                  label: 'Герои',
+                  baseColor: const Color(0xFFFF8C00),
+                  isPussyMode: _pussyMode,
+                  onTap: () {},
+                )
+              else ...[
+                _ModeButton(
+                  normalIcon: 'assets/characters/dota2/npc_dota_hero_pudge_alt1_png.png',
+                  pussyIcon: 'assets/characters/dota2/npc_dota_hero_pudge_persona1_png.png',
+                  label: 'Герои',
+                  baseColor: const Color(0xFFFF8C00),
+                  isPussyMode: _pussyMode,
+                  onTap: () async {
+                    await context.read<AppState>().game.selectMode(widget.gameId, userId, GameMode.characters);
+                    if (_pussyMode) {
+                      await context.read<AppState>().game.setPussyMode(widget.gameId, true);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                _ModeButton(
+                  normalIcon: 'assets/items/dota/aegis_png.png',
+                  pussyIcon: 'assets/items/dota/pogo_stick_png.png',
+                  label: 'Предметы',
+                  baseColor: const Color(0xFFFF4500),
+                  isPussyMode: _pussyMode,
+                  onTap: () async {
+                    await context.read<AppState>().game.selectMode(widget.gameId, userId, GameMode.items);
+                    if (_pussyMode) {
+                      await context.read<AppState>().game.setPussyMode(widget.gameId, true);
+                    }
+                  },
+                ),
+              ],
             ],
           ),
         ),

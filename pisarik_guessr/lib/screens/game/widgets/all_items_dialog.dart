@@ -33,6 +33,8 @@ class _AllItemsDialogState extends State<AllItemsDialog> with SingleTickerProvid
   late AnimationController _closeController;
   late Animation<double> _closeAnimation;
   int? _pressedIndex;
+  late ScrollController _scrollController;
+  static final Map<String, double> _scrollOffsets = {};
 
   @override
   void initState() {
@@ -45,10 +47,24 @@ class _AllItemsDialogState extends State<AllItemsDialog> with SingleTickerProvid
     _closeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(parent: _closeController, curve: Curves.easeIn),
     );
+    _scrollController = ScrollController();
+    final key = '${widget.theme.id}_${widget.gameMode.id}';
+    if (_scrollOffsets.containsKey(key)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollOffsets[key]!);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    final key = '${widget.theme.id}_${widget.gameMode.id}';
+    if (_scrollController.hasClients) {
+      _scrollOffsets[key] = _scrollController.offset;
+    }
+    _scrollController.dispose();
     _closeController.dispose();
     super.dispose();
   }
@@ -81,11 +97,6 @@ class _AllItemsDialogState extends State<AllItemsDialog> with SingleTickerProvid
         await _closeDialog();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
       setState(() => _pressedIndex = null);
     }
   }
@@ -121,6 +132,7 @@ class _AllItemsDialogState extends State<AllItemsDialog> with SingleTickerProvid
               const SizedBox(height: 12),
               Expanded(
                 child: GridView.builder(
+                  controller: _scrollController,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     childAspectRatio: 1,

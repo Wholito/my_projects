@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/app_user.dart';
+import '../../models/game_session.dart';  // <-- ДОБАВЛЕНО
 import '../../navigation/game_navigation.dart';
 import '../../providers/app_state.dart';
 import '../../services/game_service.dart';
@@ -77,15 +78,28 @@ class _HomeScreenState extends State<HomeScreen> with NetworkAwareState {
       messenger.showSnackBar(
         const SnackBar(
           duration: Duration(seconds: 2),
-          content: Text('Создание игры...'),
+          content: Text('Поиск игры...'),
         ),
       );
 
       final appState = context.read<AppState>();
       final user = appState.user!;
 
-      final gameId = await appState.game.createGame(user.id);
+      String? existingGameId = await appState.game.findActiveGameBetween(user.id, friend.id);
+      if (existingGameId != null) {
+        final gameDoc = await appState.game.getGame(existingGameId);
+        if (gameDoc.exists) {
+          final game = GameSession.fromMap(existingGameId, gameDoc.data() as Map<String, dynamic>);
+          if (game.hostId != user.id && game.guestId != user.id) {
+            await appState.game.joinGame(existingGameId, user.id);
+          }
+          messenger.hideCurrentSnackBar();
+          _openGame(context, existingGameId);
+          return;
+        }
+      }
 
+      final gameId = await appState.game.createGame(user.id);
       await appState.game.inviteFriendToGame(
         gameId: gameId,
         friendId: friend.id,
@@ -93,14 +107,12 @@ class _HomeScreenState extends State<HomeScreen> with NetworkAwareState {
       );
 
       if (!context.mounted) return;
-
       messenger.hideCurrentSnackBar();
       _openGame(context, gameId);
     } catch (e) {
       if (!context.mounted) return;
-
       messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      messenger.showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
     }
   }
 

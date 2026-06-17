@@ -15,13 +15,18 @@ class WaitingPhase extends StatelessWidget {
           const CircularProgressIndicator(),
           const SizedBox(height: 24),
           Text(
-            game.isFull ? 'Готовимся...' : 'Ждём второго игрока...',
+            game.isFull ? 'Готовимся...' : 'Дождитесь друга',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
-          Text(
-            'Отправьте приглашение другу или дождитесь его',
-            style: TextStyle(color: Colors.white.withOpacity(0.6)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              game.isFull ? '' : 'Игра начнётся, когда друг присоединится',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white.withOpacity(0.6)),
+              softWrap: true,
+            ),
           ),
         ],
       ),
