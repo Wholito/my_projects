@@ -1,17 +1,78 @@
-# bluefin
+# BlueFin – финансовый трекер с офлайн-синхронизацией
+  Приложение для учёта личных финансов с архитектурой Clean Architecture, BLoC и реальным временем.
 
-A new Flutter project.
+# Описание
+  BlueFin помогает отслеживать доходы и расходы, управлять категориями, анализировать траты и конвертировать валюты.
+Данные синхронизируются с удалённым сервером (Supabase) при наличии интернета и сохраняются локально для работы офлайн.
 
-## Getting Started
+# Особенности
+Многопользовательская поддержка (авторизация через Supabase)
 
-This project is a starting point for a Flutter application.
+Офлайн‑режим с синхронизацией при выходе в сеть
 
-A few resources to get you started if this is your first Flutter project:
+Управление категориями (создание, редактирование, удаление)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Ведение транзакций (доходы/расходы)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Аналитика по категориям (диаграммы, списки)
+
+Конвертация валют с актуальными курсами НБРБ
+
+Настройки: валюта, тема, уведомления
+
+Тёмная/светлая тема (Material 3)
+
+# Технологии
+Компонент  Технология
+Фреймворк  Flutter (SDK >= 3.0)
+Архитектура  Clean Architecture (Domain, Data, Presentation)
+Состояние  BLoC / Cubit
+DI  GetIt
+Локальное хранилище  SharedPreferences
+Удалённое хранилище  Supabase (Auth + Database)
+Сеть  Dio, Connectivity Plus
+Валидация  dartz 
+# Установка и запуск
+Клонируйте репозиторий:
+
+git clone https://github.com/username/bluefin.git
+cd bluefin
+Установите зависимости:
+
+flutter pub get
+Настройте Supabase:
+
+Создайте проект в Supabase.
+
+Добавьте таблицы profiles, categories, transactions, balances.
+
+В lib/core/services/supabase_service.dart укажите свой URL и anonKey.
+
+Включите аутентификацию по email/паролю.
+
+# Как использовать
+Авторизация – войдите или зарегистрируйтесь через email.
+
+Баланс – отображается на главной вкладке. Обновляется автоматически при добавлении/удалении транзакций.
+
+Транзакции – добавление, редактирование, удаление. Выбор категории из собственного списка.
+
+Категории – создавайте свои категории доходов и расходов.
+
+Аналитика – графики расходов и доходов по категориям.
+
+Конвертер валют – актуальные курсы от НБРБ.
+
+Настройки – валюта, тема, уведомления, выход из аккаунта.
+
+Структура проекта (Clean Architecture)
+
+lib/
+├── core/               # общие компоненты (DI, сети, ошибки, usecases)
+├── features/           # фичи (auth, balance, transactions, categories, analytics, currency, settings)
+│   ├── domain/         # сущности, интерфейсы репозиториев, юзкейсы
+│   ├── data/           # реализации репозиториев, дата-сорсы, модели
+│   └── presentation/   # BLoC/Cubit, экраны, виджеты
+└── main.dart           # точка входа
+
+
