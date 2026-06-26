@@ -35,8 +35,8 @@ DI  GetIt
 # Установка и запуск
 Клонируйте репозиторий:
 
-git clone https://github.com/username/bluefin.git
-cd bluefin
+git clone https://github.com/Wholito/my_projects/edit/main/BlueFin.git
+cd BlueFin
 Установите зависимости:
 
 flutter pub get
@@ -65,14 +65,5 @@ flutter pub get
 
 Настройки – валюта, тема, уведомления, выход из аккаунта.
 
-Структура проекта (Clean Architecture)
-
-lib/
-├── core/               # общие компоненты (DI, сети, ошибки, usecases)
-├── features/           # фичи (auth, balance, transactions, categories, analytics, currency, settings)
-│   ├── domain/         # сущности, интерфейсы репозиториев, юзкейсы
-│   ├── data/           # реализации репозиториев, дата-сорсы, модели
-│   └── presentation/   # BLoC/Cubit, экраны, виджеты
-└── main.dart           # точка входа
 
 
