@@ -1,0 +1,5092 @@
+===== main.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/di/injection_container.dart' as di;
+import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/auth/presentation/bloc/auth_event.dart';
+import 'features/auth/presentation/screens/splash_screen.dart';
+import 'features/auth/presentation/screens/sign_in_screen.dart';
+import 'features/auth/presentation/screens/sign_up_screen.dart';
+import 'features/balance/presentation/bloc/balance_bloc.dart';
+import 'features/categories/presentation/bloc/categories_bloc.dart';
+import 'features/transactions/presentation/bloc/transactions_bloc.dart';
+import 'features/analytics/presentation/bloc/analytics_bloc.dart';
+import 'features/currency/presentation/cubit/currency_cubit.dart';
+import 'features/settings/presentation/cubit/settings_cubit.dart';
+import 'presentation/main_screen.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await di.init();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthBloc>(
+          create: (context) => di.sl<AuthBloc>()..add(AuthCheckStatusRequested()),
+        ),
+        BlocProvider<BalanceBloc>(
+          create: (context) => di.sl<BalanceBloc>(),
+        ),
+        BlocProvider<TransactionsBloc>(
+          create: (context) => di.sl<TransactionsBloc>(),
+        ),
+        BlocProvider<AnalyticsBloc>(
+          create: (context) => di.sl<AnalyticsBloc>(),
+        ),
+        BlocProvider<CurrencyCubit>(
+          create: (context) => di.sl<CurrencyCubit>(),
+        ),
+        BlocProvider<SettingsCubit>(
+          create: (context) => di.sl<SettingsCubit>(),
+        ),
+        BlocProvider<CategoriesBloc>(
+          create: (context) => di.sl<CategoriesBloc>(),
+        )
+      ],
+      child: MaterialApp(
+        title: 'BlueFin',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            iconTheme: IconThemeData(color: Colors.white),
+            titleTextStyle: TextStyle(color: Colors.white, fontSize: 20),
+          ),
+        ),
+        initialRoute: '/splash',
+        routes: {
+          '/splash': (context) => const SplashScreen(),
+          '/signin': (context) => const SignInScreen(),
+          '/signup': (context) => const SignUpScreen(),
+          '/main': (context) => const MainScreen(),
+        },
+      ),
+    );
+  }
+}
+
+===== core\di\injection_container.dart =====
+import 'package:BlueFin/features/analytics/domain/repositories/i_analytics_repository.dart';
+import 'package:BlueFin/features/categories/data/datasources/category_local_data_source.dart';
+import 'package:BlueFin/features/categories/data/repositories/category_repository_impl.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+import 'package:BlueFin/features/categories/domain/usecases/add_category.dart';
+import 'package:BlueFin/features/categories/domain/usecases/delete_category.dart';
+import 'package:BlueFin/features/categories/domain/usecases/get_categories.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
+import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Auth
+import '../../features/auth/data/datasources/auth_local_data_source.dart';
+import '../../features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/auth/domain/repositories/i_auth_repository.dart';
+import '../../features/auth/domain/usecases/sign_in.dart';
+import '../../features/auth/domain/usecases/sign_up.dart';
+import '../../features/auth/domain/usecases/get_current_user.dart';
+import '../../features/auth/domain/usecases/sign_out.dart';
+import '../../features/auth/presentation/bloc/auth_bloc.dart';
+
+// Balance
+import '../../features/balance/data/datasources/balance_local_data_source.dart';
+import '../../features/balance/data/repositories/balance_repository_impl.dart';
+import '../../features/balance/domain/repositories/i_balance_repository.dart';
+import '../../features/balance/domain/usecases/get_balance.dart';
+import '../../features/balance/domain/usecases/update_balance.dart';
+import '../../features/balance/presentation/bloc/balance_bloc.dart';
+
+// Transactions
+import '../../features/categories/domain/usecases/update_category.dart';
+import '../../features/categories/presentation/bloc/categories_bloc.dart';
+import '../../features/transactions/data/datasources/transaction_local_data_source.dart';
+import '../../features/transactions/data/repositories/transaction_repository_impl.dart';
+import '../../features/transactions/domain/repositories/i_transaction_repository.dart';
+import '../../features/transactions/domain/usecases/get_transactions.dart';
+import '../../features/transactions/domain/usecases/add_transaction.dart';
+import '../../features/transactions/domain/usecases/delete_transaction.dart';
+import '../../features/transactions/domain/usecases/update_transaction.dart';
+import '../../features/transactions/presentation/bloc/transactions_bloc.dart';
+
+// Analytics
+import '../../features/analytics/domain/usecases/get_spending_summary.dart';
+import '../../features/analytics/presentation/bloc/analytics_bloc.dart';
+
+// Currency
+import '../../features/currency/data/datasources/currency_local_data_source.dart';
+import '../../features/currency/data/datasources/currency_remote_data_source.dart';
+import '../../features/currency/data/repositories/currency_repository_impl.dart';
+import '../../features/currency/domain/repositories/i_currency_repository.dart';
+import '../../features/currency/domain/usecases/get_exchange_rates.dart';
+import '../../features/currency/domain/usecases/convert_currency.dart';
+import '../../features/currency/presentation/cubit/currency_cubit.dart';
+
+// Settings
+import '../../features/settings/data/datasources/settings_local_data_source.dart';
+import '../../features/settings/data/repositories/settings_repository_impl.dart';
+import '../../features/settings/domain/repositories/i_settings_repository.dart';
+import '../../features/settings/domain/usecases/get_settings.dart';
+import '../../features/settings/domain/usecases/save_settings.dart';
+import '../../features/settings/presentation/cubit/settings_cubit.dart';
+
+import 'package:BlueFin/core/network/network_info.dart';
+
+final sl = GetIt.instance;
+
+Future<void> init() async {
+  final sharedPreferences = await SharedPreferences.getInstance();
+  sl.registerSingleton<SharedPreferences>(sharedPreferences);
+
+  sl.registerLazySingleton<Dio>(() => Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 5),
+  )));
+
+  //Network
+  sl.registerLazySingleton(()=> Connectivity());
+  sl.registerLazySingleton<NetworkInfo>(()=> NetworkInfoImpl(sl<Connectivity>()));
+
+  // Auth
+  sl.registerLazySingleton<IAuthLocalDataSource>(() => AuthLocalDataSource(sl()));
+  sl.registerLazySingleton<IAuthRepository>(() => AuthRepositoryImpl(sl<IAuthLocalDataSource>()));
+  sl.registerLazySingleton(() => SignInUseCase(sl()));
+  sl.registerLazySingleton(() => SignUpUseCase(sl()));
+  sl.registerLazySingleton(() => GetCurrentUserUseCase(sl()));
+  sl.registerLazySingleton(() => SignOutUseCase(sl()));
+  sl.registerFactory(() => AuthBloc(
+    signIn: sl(),
+    signUp: sl(),
+    getCurrentUser: sl(),
+    signOut: sl(),
+  ));
+
+  // Balance
+  sl.registerLazySingleton<IBalanceLocalDataSource>(() => BalanceLocalDataSource(sl()));
+  sl.registerLazySingleton<IBalanceRepository>(() => BalanceRepositoryImpl(sl<IBalanceLocalDataSource>()));
+  sl.registerLazySingleton(() => GetBalanceUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateBalanceUseCase(sl()));
+  sl.registerFactory(() => BalanceBloc(
+    getBalance: sl(),
+    updateBalance: sl(),
+  ));
+
+  // Transactions
+  sl.registerLazySingleton<ITransactionLocalDataSource>(() => TransactionLocalDataSource(sl()));
+  sl.registerLazySingleton<ITransactionRepository>(
+        () => TransactionRepositoryImpl(sl<ITransactionLocalDataSource>()),
+  );
+  sl.registerLazySingleton(
+          () => GetTransactionsUseCase(sl()));
+  sl.registerLazySingleton(
+        () => AddTransactionUseCase(
+      transactionRepository: sl<ITransactionRepository>(),
+      balanceRepository: sl<IBalanceRepository>(),
+    ),
+  );
+  sl.registerLazySingleton(() => DeleteTransactionUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateTransactionUseCase(sl()));
+  sl.registerFactory(() => TransactionsBloc(
+    getTransactions: sl(),
+    addTransaction: sl(),
+    deleteTransaction: sl(),
+    updateTransaction: sl(),
+  ));
+
+  // Analytics
+  sl.registerLazySingleton(() => GetSpendingSummaryUseCase(sl<IAnalyticsRepository>()));
+  sl.registerFactory(() => AnalyticsBloc(getSpendingSummary: sl()));
+
+  // Currency
+  sl.registerLazySingleton<ICurrencyLocalDataSource>(() => CurrencyLocalDataSource(sl()));
+  sl.registerLazySingleton<ICurrencyRemoteDataSource>(() => CurrencyRemoteDataSource(sl<Dio>()));
+  sl.registerLazySingleton<ICurrencyRepository>(
+        () => CurrencyRepositoryImpl(
+
+      local: sl<ICurrencyLocalDataSource>(),
+      remote: sl<ICurrencyRemoteDataSource>(),
+          networkInfo: sl<NetworkInfo>(),
+    ),
+  );
+  sl.registerLazySingleton(() => GetExchangeRatesUseCase(sl()));
+  sl.registerLazySingleton(() => ConvertCurrencyUseCase(sl()));
+  sl.registerFactory(() => CurrencyCubit(
+    getExchangeRates: sl(),
+    convertCurrency: sl(),
+  ));
+
+  // Settings
+  sl.registerLazySingleton<ISettingsLocalDataSource>(() => SettingsLocalDataSource(sl()));
+  sl.registerLazySingleton<ISettingsRepository>(() => SettingsRepositoryImpl(sl<ISettingsLocalDataSource>()));
+  sl.registerLazySingleton(() => GetSettingsUseCase(sl()));
+  sl.registerLazySingleton(() => SaveSettingsUseCase(sl()));
+  sl.registerFactory(() => SettingsCubit(
+    getSettings: sl(),
+    saveSettingsUseCase: sl(),
+  ));
+
+  //Categories
+  sl.registerLazySingleton<ICategoryLocalDataSource>(()=>CategoryLocalDataSource(sl()));
+  sl.registerLazySingleton<ICategoryRepository>(()=> CategoryRepositoryImpl(sl<ICategoryLocalDataSource>()));
+  sl.registerLazySingleton(()=> AddCategoryUseCase(sl()));
+  sl.registerLazySingleton(()=> UpdateCategoryUseCase(sl()));
+  sl.registerLazySingleton(()=> DeleteCategoryUseCase(sl()));
+  sl.registerLazySingleton(()=> GetCategoriesUseCase(sl()));
+  sl.registerFactory(()=>CategoriesBloc(
+    getCategories: sl(),
+    addCategory: sl(),
+    updateCategory: sl(),
+    deleteCategory: sl(),
+  ));
+}
+
+===== core\errors\exceptions.dart =====
+class ServerException implements Exception {
+  final String message;
+  const ServerException(this.message);
+}
+
+class CacheException implements Exception {
+  final String message;
+  const CacheException(this.message);
+}
+
+===== core\errors\failures.dart =====
+import 'package:equatable/equatable.dart';
+
+
+abstract class Failure extends Equatable {
+  final String message;
+  const Failure(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
+class ServerFailure extends Failure {
+  const ServerFailure(super.message);
+}
+
+class CacheFailure extends Failure {
+  const CacheFailure(super.message);
+}
+
+class NetworkFailure extends Failure {
+  const NetworkFailure(super.message);
+}
+
+===== core\network\network_info.dart =====
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+abstract class NetworkInfo {
+  Future<bool> get isConnected;
+}
+
+class NetworkInfoImpl implements NetworkInfo {
+  final Connectivity connectivity;
+
+  NetworkInfoImpl(this.connectivity);
+
+  @override
+  Future<bool> get isConnected async {
+    final result = await connectivity.checkConnectivity();
+    return result != ConnectivityResult.none;
+  }
+}
+
+===== core\usecases\usecase.dart =====
+import 'package:dartz/dartz.dart';
+import '../errors/failures.dart';
+
+abstract class UseCase<Type, Params> {
+  Future<Either<Failure, Type>> call(Params params);
+}
+
+class NoParams {
+  const NoParams();
+}
+
+===== core\utils\constants.dart =====
+
+
+===== core\utils\currency_formatter.dart =====
+
+
+===== core\utils\date_formatter.dart =====
+
+
+===== features\analytics\data\datasources\analytics_local_data.dart =====
+
+
+===== features\analytics\data\datasources\analytics_remote_data.dart =====
+
+
+===== features\analytics\data\models\spending_category_model.dart =====
+
+
+===== features\analytics\data\repositories\analytics_repository_impl.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/features/analytics/domain/entities/spending_category.dart';
+import 'package:BlueFin/features/analytics/domain/entities/spending_summary.dart';
+import 'package:BlueFin/features/analytics/domain/usecases/get_spending_summary.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+import 'package:BlueFin/features/transactions/domain/repositories/i_transaction_repository.dart';
+import 'package:dartz/dartz.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../domain/repositories/i_analytics_repository.dart';
+
+class AnalyticsRepositoryImpl implements IAnalyticsRepository {
+  final ITransactionRepository transactionRepository;
+
+  AnalyticsRepositoryImpl(this.transactionRepository);
+
+  @override
+  Future<Either<Failure, SpendingSummary>> getSpendingSummary() async {
+    final result = await transactionRepository.getTransactions();
+    return result.fold(
+      (failure) => Left(failure),
+      (transactions) => Right(_aggregate(transactions)),
+    );
+  }
+
+  SpendingSummary _aggregate(List<Transaction> transactions) {
+    double totalIncome = 0;
+    double totalExpense = 0;
+    final Map<String, double> expenseMap = {};
+    final Map<String, double> incomeMap = {};
+
+    for (final tx in transactions) {
+      if (tx.type == TransactionType.income) {
+        totalIncome += tx.amount;
+        incomeMap[tx.categoryId] = (incomeMap[tx.categoryId] ?? 0) + tx.amount;
+      } else {
+        totalExpense += tx.amount;
+        expenseMap[tx.categoryId] = (expenseMap[tx.categoryId] ?? 0) + tx.amount;
+      }
+    }
+
+    final expenseCategories = expenseMap.entries
+        .map((e) => SpendingCategory(category: e.key, amount: e.value))
+        .toList()
+      ..sort((a, b) => b.amount.compareTo(a.amount));
+
+    final incomeCategories = incomeMap.entries
+        .map((e) => SpendingCategory(category: e.key, amount: e.value))
+        .toList()
+      ..sort((a, b) => b.amount.compareTo(a.amount));
+
+    return SpendingSummary(
+      totalIncome: totalIncome,
+      totalExpense: totalExpense,
+      expenseCategories: expenseCategories,
+      incomeCategories: incomeCategories,
+    );
+  }
+}
+
+
+===== features\analytics\domain\entities\spending_category.dart =====
+class SpendingCategory {
+  final String category;
+  final double amount;
+  final int transactionCount;
+
+  const SpendingCategory({
+    required this.category,
+    required this.amount,
+    this.transactionCount = 0,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is SpendingCategory &&
+              runtimeType == other.runtimeType &&
+              category == other.category &&
+              amount == other.amount;
+
+  @override
+  int get hashCode => Object.hash(category, amount);
+}
+
+===== features\analytics\domain\entities\spending_summary.dart =====
+import 'spending_category.dart';
+
+class SpendingSummary {
+  final double totalIncome;
+  final double totalExpense;
+  final List<SpendingCategory> expenseCategories;
+  final List<SpendingCategory> incomeCategories;
+
+  const SpendingSummary({
+    required this.totalIncome,
+    required this.totalExpense,
+    required this.expenseCategories,
+    required this.incomeCategories,
+  });
+}
+
+===== features\analytics\domain\repositories\i_analytics_repository.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/features/analytics/domain/entities/spending_summary.dart';
+import 'package:BlueFin/features/analytics/domain/usecases/get_spending_summary.dart';
+import 'package:dartz/dartz.dart';
+
+abstract class IAnalyticsRepository {
+  Future<Either<Failure,SpendingSummary>> getSpendingSummary();
+}
+
+===== features\analytics\domain\usecases\get_spending_summary.dart =====
+import 'package:BlueFin/features/analytics/domain/repositories/i_analytics_repository.dart';
+import 'package:BlueFin/features/analytics/domain/usecases/get_spending_summary.dart';
+import 'package:dartz/dartz.dart';
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/analytics/domain/entities/spending_summary.dart';
+
+
+class GetSpendingSummaryUseCase implements UseCase<SpendingSummary, NoParams> {
+  final IAnalyticsRepository analyticsRepository;
+
+  const GetSpendingSummaryUseCase(this.analyticsRepository);
+
+  @override
+  Future<Either<Failure, SpendingSummary>> call(NoParams params) async {
+    return analyticsRepository.getSpendingSummary();
+  }
+
+}
+
+===== features\analytics\presentation\bloc\analytics_bloc.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'analytics_event.dart';
+import 'analytics_state.dart';
+import '../../domain/usecases/get_spending_summary.dart';
+import '../../../../core/usecases/usecase.dart';
+
+class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
+  final GetSpendingSummaryUseCase getSpendingSummary;
+
+  AnalyticsBloc({required this.getSpendingSummary}) : super(AnalyticsInitial()) {
+    on<AnalyticsLoadRequested>(_onLoad);
+  }
+
+  Future<void> _onLoad(
+      AnalyticsLoadRequested event,
+      Emitter<AnalyticsState> emit,
+      ) async {
+    emit(AnalyticsLoading());
+    final result = await getSpendingSummary(NoParams());
+    result.fold(
+          (failure) => emit(AnalyticsError(failure.message)),
+          (summary) => emit(AnalyticsLoaded(summary)),
+    );
+  }
+}
+
+===== features\analytics\presentation\bloc\analytics_event.dart =====
+import 'package:equatable/equatable.dart';
+
+abstract class AnalyticsEvent extends Equatable {
+  const AnalyticsEvent();
+  @override
+  List<Object> get props => [];
+}
+
+class AnalyticsLoadRequested extends AnalyticsEvent {}
+
+===== features\analytics\presentation\bloc\analytics_state.dart =====
+import 'package:equatable/equatable.dart';
+import '../../domain/usecases/get_spending_summary.dart';
+import 'package:BlueFin/features/analytics/domain/entities/spending_summary.dart';
+
+abstract class AnalyticsState extends Equatable {
+  const AnalyticsState();
+  @override
+  List<Object> get props => [];
+}
+
+class AnalyticsInitial extends AnalyticsState {}
+
+class AnalyticsLoading extends AnalyticsState {}
+
+class AnalyticsLoaded extends AnalyticsState {
+  final SpendingSummary summary;
+  const AnalyticsLoaded(this.summary);
+  @override
+  List<Object> get props => [summary];
+}
+
+class AnalyticsError extends AnalyticsState {
+  final String message;
+  const AnalyticsError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\analytics\presentation\screens\analytics_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/analytics_bloc.dart';
+import '../bloc/analytics_event.dart';
+import '../bloc/analytics_state.dart';
+import '../widgets/pie_chart_widget.dart';
+import '../widgets/category_list_widget.dart';
+
+class AnalyticsScreen extends StatelessWidget {
+  const AnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Аналитика'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<AnalyticsBloc>().add(AnalyticsLoadRequested());
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<AnalyticsBloc, AnalyticsState>(
+        listener: (context, state) {
+          if (state is AnalyticsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is AnalyticsLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is AnalyticsLoaded) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              const Text('Доходы', style: TextStyle(color: Colors.green)),
+                              Text(
+                                '${state.summary.totalIncome.toStringAsFixed(2)} ₽',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              const Text('Расходы', style: TextStyle(color: Colors.red)),
+                              Text(
+                                '${state.summary.totalExpense.toStringAsFixed(2)} ₽',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              const Text('Баланс', style: TextStyle(color: Colors.blue)),
+                              Text(
+                                '${(state.summary.totalIncome - state.summary.totalExpense).toStringAsFixed(2)} ₽',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Расходы по категориям',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  PieChartWidget(
+                    categories: state.summary.expenseCategories,
+                    totalAmount: state.summary.totalExpense,
+                  ),
+                  const SizedBox(height: 8),
+                  CategoryListWidget(categories: state.summary.expenseCategories),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Доходы по категориям',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  PieChartWidget(
+                    categories: state.summary.incomeCategories,
+                    totalAmount: state.summary.totalIncome,
+                  ),
+                  const SizedBox(height: 8),
+                  CategoryListWidget(categories: state.summary.incomeCategories),
+                ],
+              ),
+            );
+          } else {
+            return const Center(child: Text('Нет данных'));
+          }
+        },
+      ),
+    );
+  }
+}
+
+===== features\analytics\presentation\widgets\category_list_widget.dart =====
+import 'package:flutter/material.dart';
+import '../../domain/entities/spending_category.dart';
+
+class CategoryListWidget extends StatelessWidget {
+  final List<SpendingCategory> categories;
+
+  const CategoryListWidget({super.key, required this.categories});
+
+  @override
+  Widget build(BuildContext context) {
+    if (categories.isEmpty) {
+      return const Text('Нет категорий');
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: categories.length,
+      itemBuilder: (ctx, index) {
+        final category = categories[index];
+        return ListTile(
+          leading: const Icon(Icons.category),
+          title: Text(category.category),
+          trailing: Text('${category.amount.toStringAsFixed(2)} ₽'),
+        );
+      },
+    );
+  }
+}
+
+===== features\analytics\presentation\widgets\pie_chart_widget.dart =====
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../../domain/entities/spending_category.dart';
+
+class PieChartWidget extends StatelessWidget {
+  final List<SpendingCategory> categories;
+  final double totalAmount;
+
+  const PieChartWidget({
+    super.key,
+    required this.categories,
+    required this.totalAmount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (categories.isEmpty || totalAmount == 0) {
+      return const Center(
+        child: Text('Нет данных для отображения'),
+      );
+    }
+
+    final colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.pink,
+      Colors.indigo,
+    ];
+
+    return SizedBox(
+      height: 200,
+      child: PieChart(
+        PieChartData(
+          sections: categories.asMap().entries.map((entry) {
+            final index = entry.key;
+            final category = entry.value;
+            final percentage = (category.amount / totalAmount) * 100;
+            return PieChartSectionData(
+              color: colors[index % colors.length],
+              value: category.amount,
+              title: '${percentage.toStringAsFixed(1)}%',
+              radius: 60,
+              titleStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            );
+          }).toList(),
+          sectionsSpace: 2,
+          centerSpaceRadius: 30,
+        ),
+      ),
+    );
+  }
+}
+
+===== features\auth\data\datasources\auth_local_data_source.dart =====
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/token_model.dart';
+import '../models/user_model.dart';
+
+abstract class IAuthLocalDataSource {
+  Future<void> saveUserAndToken(UserModel user, TokenModel token);
+  Future<UserModel?> getUser();
+  Future<TokenModel?> getToken();
+  Future<void> clearAll();
+}
+
+class AuthLocalDataSource implements IAuthLocalDataSource {
+  final SharedPreferences prefs;
+
+  AuthLocalDataSource(this.prefs);
+
+  @override
+  Future<void> saveUserAndToken(UserModel user, TokenModel token) async {
+    try {
+      await prefs.setString('user', jsonEncode(user.toJson()));
+      await prefs.setString('token', jsonEncode(token.toJson()));
+    } catch (e) {
+      throw CacheException('Failed to save user/token: $e');
+    }
+  }
+
+  @override
+  Future<UserModel?> getUser() async {
+    try {
+      final jsonString = prefs.getString('user');
+      if (jsonString == null) return null;
+      final map = jsonDecode(jsonString) as Map<String, dynamic>;
+      return UserModel.fromJson(map);
+    } catch (e) {
+      throw CacheException('Failed to get user: $e');
+    }
+  }
+
+  @override
+  Future<TokenModel?> getToken() async {
+    try {
+      final jsonString = prefs.getString('token');
+      if (jsonString == null) return null;
+      final map = jsonDecode(jsonString) as Map<String, dynamic>;
+      return TokenModel.fromJson(map);
+    } catch (e) {
+      throw CacheException('Failed to get token: $e');
+    }
+  }
+
+  @override
+  Future<void> clearAll() async {
+    try {
+      await prefs.remove('user');
+      await prefs.remove('token');
+    } catch (e) {
+      throw CacheException('Failed to clear storage: $e');
+    }
+  }
+}
+
+===== features\auth\data\datasources\auth_remote_data_source.dart =====
+import '../../../../core/errors/exceptions.dart';
+import '../models/user_model.dart';
+import '../models/token_model.dart';
+
+abstract class IAuthRemoteDataSource {
+  Future<(UserModel, TokenModel)> signIn(String email, String password);
+  Future<(UserModel, TokenModel)> signUp(String email, String password, String? name);
+}
+
+class AuthRemoteDataSource implements IAuthRemoteDataSource {
+  @override
+  Future<(UserModel, TokenModel)> signIn(String email, String password) {
+    throw ServerException('Remote data source is not available in offline mode');
+  }
+
+  @override
+  Future<(UserModel, TokenModel)> signUp(String email, String password, String? name) {
+    throw ServerException('Remote data source is not available in offline mode');
+  }
+}
+
+===== features\auth\data\models\token_model.dart =====
+class TokenModel {
+  final String accessToken;
+  final String? refreshToken;
+  final DateTime expiresAt;
+
+  TokenModel({required this.accessToken, this.refreshToken, required this.expiresAt});
+
+  factory TokenModel.fromJson(Map<String, dynamic> json) => TokenModel(
+    accessToken: json['accessToken'] as String,
+    refreshToken: json['refreshToken'] as String?,
+    expiresAt: DateTime.parse(json['expiresAt'] as String),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'accessToken': accessToken,
+    'refreshToken': refreshToken,
+    'expiresAt': expiresAt.toIso8601String(),
+  };
+}
+
+===== features\auth\data\models\user_model.dart =====
+import '../../domain/entities/user.dart';
+
+class UserModel {
+  final String id;
+  final String email;
+  final String? name;
+  final String? photoUrl;
+
+  UserModel({required this.id, required this.email, this.name, this.photoUrl});
+
+  factory UserModel.fromDomain(User user) => UserModel(
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    photoUrl: user.photoUrl,
+  );
+
+  User toDomain() => User(
+    id: id,
+    email: email,
+    name: name,
+    photoUrl: photoUrl,
+  );
+
+  factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
+    id: json['id'] as String,
+    email: json['email'] as String,
+    name: json['name'] as String?,
+    photoUrl: json['photoUrl'] as String?,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'email': email,
+    'name': name,
+    'photoUrl': photoUrl,
+  };
+}
+
+===== features\auth\data\repositories\auth_repository_impl.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/user.dart';
+import '../../domain/repositories/i_auth_repository.dart';
+import '../datasources/auth_local_data_source.dart';
+import '../models/user_model.dart';
+import '../models/token_model.dart';
+
+class AuthRepositoryImpl implements IAuthRepository {
+  final IAuthLocalDataSource local;
+
+  AuthRepositoryImpl(this.local);
+
+  @override
+  Future<Either<Failure, User>> signIn(String email, String password) async {
+    try {
+      final user = await local.getUser();
+      if (user == null) {
+        return Left(CacheFailure('Пользователь не найден'));
+      }
+      if (user.email == email) {
+        return Right(user.toDomain());
+      } else {
+        return Left(CacheFailure('Неверный email или пароль'));
+      }
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, User>> signUp(String email, String password, String? name) async {
+    try {
+      final existingUser = await local.getUser();
+      if (existingUser != null && existingUser.email == email) {
+        return Left(CacheFailure('Пользователь с таким email уже существует'));
+      }
+      final newUser = UserModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        email: email,
+        name: name,
+        photoUrl: null,
+      );
+      final token = TokenModel(
+        accessToken: 'local_token',
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+      );
+      await local.saveUserAndToken(newUser, token);
+      return Right(newUser.toDomain());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, User>> getCurrentUser() async {
+    try {
+      final user = await local.getUser();
+      if (user == null) {
+        return Left(CacheFailure('User not found'));
+      }
+      return Right(user.toDomain());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> signOut() async {
+    try {
+      await local.clearAll();
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+}
+
+===== features\auth\domain\entities\user.dart =====
+class User {
+  final String id;
+  final String email;
+  final String? name;
+  final String? photoUrl;
+
+  const User({
+    required this.id,
+    required this.email,
+    this.name,
+    this.photoUrl,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is User &&
+              runtimeType == other.runtimeType &&
+              id == other.id &&
+              email == other.email &&
+              name == other.name &&
+              photoUrl == other.photoUrl;
+
+  @override
+  int get hashCode => Object.hash(id, email, name, photoUrl);
+}
+
+===== features\auth\domain\repositories\i_auth_repository.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../entities/user.dart';
+
+abstract class IAuthRepository {
+  Future<Either<Failure, User>> signIn(String email, String password);
+  Future<Either<Failure, User>> signUp(String email, String password, String? name);
+  Future<Either<Failure, User>> getCurrentUser();
+  Future<Either<Failure, void>> signOut();
+}
+
+===== features\auth\domain\usecases\get_current_user.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/user.dart';
+import '../repositories/i_auth_repository.dart';
+
+class GetCurrentUserUseCase implements UseCase<User, NoParams> {
+  final IAuthRepository repository;
+  const GetCurrentUserUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, User>> call(NoParams params) {
+    return repository.getCurrentUser();
+  }
+}
+
+===== features\auth\domain\usecases\sign_in.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/user.dart';
+import '../repositories/i_auth_repository.dart';
+
+class SignInParams {
+  final String email;
+  final String password;
+  const SignInParams({required this.email, required this.password});
+}
+
+class SignInUseCase implements UseCase<User, SignInParams> {
+  final IAuthRepository repository;
+  const SignInUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, User>> call(SignInParams params) {
+    return repository.signIn(params.email, params.password);
+  }
+}
+
+===== features\auth\domain\usecases\sign_out.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../repositories/i_auth_repository.dart';
+
+class SignOutUseCase implements UseCase<void, NoParams> {
+  final IAuthRepository repository;
+  const SignOutUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(NoParams params) {
+    return repository.signOut();
+  }
+}
+
+===== features\auth\domain\usecases\sign_up.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/user.dart';
+import '../repositories/i_auth_repository.dart';
+
+class SignUpParams {
+  final String email;
+  final String password;
+  final String? name;
+  const SignUpParams({required this.email, required this.password, this.name});
+}
+
+class SignUpUseCase implements UseCase<User, SignUpParams> {
+  final IAuthRepository repository;
+  const SignUpUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, User>> call(SignUpParams params) {
+    return repository.signUp(params.email, params.password, params.name);
+  }
+}
+
+===== features\auth\presentation\bloc\auth_bloc.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'auth_event.dart';
+import 'auth_state.dart';
+import '../../domain/usecases/sign_in.dart';
+import '../../domain/usecases/sign_up.dart';
+import '../../domain/usecases/get_current_user.dart';
+import '../../domain/usecases/sign_out.dart';
+import '../../../../core/usecases/usecase.dart';
+
+class AuthBloc extends Bloc<AuthEvent, AuthState> {
+  final SignInUseCase signIn;
+  final SignUpUseCase signUp;
+  final GetCurrentUserUseCase getCurrentUser;
+  final SignOutUseCase signOut;
+
+  AuthBloc({
+    required this.signIn,
+    required this.signUp,
+    required this.getCurrentUser,
+    required this.signOut,
+  }) : super(AuthInitial()) {
+    on<AuthCheckStatusRequested>(_onCheckStatus);
+    on<AuthSignInRequested>(_onSignIn);
+    on<AuthSignUpRequested>(_onSignUp);
+    on<AuthSignOutRequested>(_onSignOut);
+  }
+
+  void _onCheckStatus(
+      AuthCheckStatusRequested event,
+      Emitter<AuthState> emit,
+      ) async {
+    emit(AuthLoading());
+    final result = await getCurrentUser(NoParams());
+    result.fold(
+          (failure) => emit(AuthUnauthenticated()),
+          (user) => emit(AuthAuthenticated(user)),
+    );
+  }
+
+  void _onSignIn(
+      AuthSignInRequested event,
+      Emitter<AuthState> emit,
+      ) async {
+    emit(AuthLoading());
+    final result = await signIn(SignInParams(
+      email: event.email,
+      password: event.password,
+    ));
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (user) => emit(AuthAuthenticated(user)),
+    );
+  }
+
+  void _onSignUp(
+      AuthSignUpRequested event,
+      Emitter<AuthState> emit,
+      ) async {
+    emit(AuthLoading());
+    final result = await signUp(SignUpParams(
+      email: event.email,
+      password: event.password,
+      name: event.name,
+    ));
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (user) => emit(AuthAuthenticated(user)),
+    );
+  }
+
+  void _onSignOut(
+      AuthSignOutRequested event,
+      Emitter<AuthState> emit,
+      ) async {
+    emit(AuthLoading());
+    final result = await signOut(NoParams());
+    result.fold(
+          (failure) => emit(AuthError(failure.message)),
+          (_) => emit(AuthUnauthenticated()),
+    );
+  }
+}
+
+===== features\auth\presentation\bloc\auth_event.dart =====
+import 'package:equatable/equatable.dart';
+
+abstract class AuthEvent extends Equatable {
+  const AuthEvent();
+  @override
+  List<Object> get props => [];
+}
+
+class AuthSignInRequested extends AuthEvent {
+  final String email;
+  final String password;
+  const AuthSignInRequested(this.email, this.password);
+  @override
+  List<Object> get props => [email, password];
+}
+
+class AuthSignUpRequested extends AuthEvent {
+  final String email;
+  final String password;
+  final String? name;
+  const AuthSignUpRequested(this.email, this.password, this.name);
+  @override
+  List<Object> get props => [email, password, name ?? ''];
+}
+
+class AuthCheckStatusRequested extends AuthEvent {}
+
+class AuthSignOutRequested extends AuthEvent {}
+
+===== features\auth\presentation\bloc\auth_state.dart =====
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/user.dart';
+
+abstract class AuthState extends Equatable {
+  const AuthState();
+  @override
+  List<Object> get props => [];
+}
+
+class AuthInitial extends AuthState {}
+
+class AuthLoading extends AuthState {}
+
+class AuthAuthenticated extends AuthState {
+  final User user;
+  const AuthAuthenticated(this.user);
+  @override
+  List<Object> get props => [user];
+}
+
+class AuthUnauthenticated extends AuthState {}
+
+class AuthError extends AuthState {
+  final String message;
+  const AuthError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\auth\presentation\screens\sign_in_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
+import '../widgets/auth_form.dart';
+
+class SignInScreen extends StatefulWidget {
+  const SignInScreen({super.key});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleSignIn() {
+    if (_formKey.currentState!.validate()) {
+      context.read<AuthBloc>().add(
+        AuthSignInRequested(
+          _emailController.text.trim(),
+          _passwordController.text,
+        ),
+      );
+    }
+  }
+
+  void _navigateToSignUp() {
+    Navigator.pushNamed(context, '/signup');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Вход')),
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            Navigator.pushReplacementNamed(context, '/main');
+          }
+          if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        builder: (context, state) {
+          return Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AuthForm(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    obscurePassword: _obscurePassword,
+                    onTogglePasswordVisibility: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  if (state is AuthLoading)
+                    const CircularProgressIndicator()
+                  else ...[
+                    ElevatedButton(
+                      onPressed: _handleSignIn,
+                      child: const Text('Войти'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: _navigateToSignUp,
+                      child: const Text('Нет аккаунта? Зарегистрироваться'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+===== features\auth\presentation\screens\sign_up_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
+import '../widgets/auth_form.dart';
+
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
+
+  @override
+  State<SignUpScreen> createState() => _SignUpScreenState();
+}
+
+class _SignUpScreenState extends State<SignUpScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _handleSignUp() {
+    if (_formKey.currentState!.validate()) {
+      context.read<AuthBloc>().add(
+        AuthSignUpRequested(
+          _emailController.text.trim(),
+          _passwordController.text,
+          _nameController.text.isNotEmpty ? _nameController.text : null,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Регистрация')),
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            Navigator.pushReplacementNamed(context, '/main');
+          }
+          if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        builder: (context, state) {
+          return Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Имя (необязательно)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  AuthForm(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    obscurePassword: _obscurePassword,
+                    onTogglePasswordVisibility: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                    showLabels: true,
+                  ),
+                  const SizedBox(height: 20),
+                  if (state is AuthLoading)
+                    const CircularProgressIndicator()
+                  else ...[
+                    ElevatedButton(
+                      onPressed: _handleSignUp,
+                      child: const Text('Зарегистрироваться'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Уже есть аккаунт? Войти'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+===== features\auth\presentation\screens\splash_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
+
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthBloc>().add(AuthCheckStatusRequested());
+    });
+
+    return Scaffold(
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticated) {
+            Navigator.pushReplacementNamed(context, '/main');
+          } else if (state is AuthUnauthenticated) {
+            Navigator.pushReplacementNamed(context, '/signin');
+          } else if (state is AuthError) {
+            Navigator.pushReplacementNamed(context, '/signin');
+          }
+        },
+        builder: (context, state) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text(
+                  'Загрузка...',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+===== features\auth\presentation\widgets\auth_form.dart =====
+import 'package:flutter/material.dart';
+
+class AuthForm extends StatelessWidget {
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final bool obscurePassword;
+  final VoidCallback onTogglePasswordVisibility;
+  final bool showLabels;
+
+  const AuthForm({
+    super.key,
+    required this.emailController,
+    required this.passwordController,
+    required this.obscurePassword,
+    required this.onTogglePasswordVisibility,
+    this.showLabels = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextFormField(
+          controller: emailController,
+          decoration: InputDecoration(
+            labelText: showLabels ? 'Email' : null,
+            hintText: 'Email',
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Введите email';
+            }
+            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+              return 'Некорректный email';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: passwordController,
+          decoration: InputDecoration(
+            labelText: showLabels ? 'Пароль' : null,
+            hintText: 'Пароль',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: Icon(
+                obscurePassword ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: onTogglePasswordVisibility,
+            ),
+          ),
+          obscureText: obscurePassword,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Введите пароль';
+            }
+            if (value.length < 6) {
+              return 'Пароль должен быть минимум 6 символов';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+}
+
+===== features\auth\presentation\widgets\social_login_buttons.dart =====
+
+
+===== features\balance\data\datasources\balance_local_data_source.dart =====
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/balance_model.dart';
+
+abstract class IBalanceLocalDataSource {
+  Future<BalanceModel?> getBalance();
+  Future<void> saveBalance(BalanceModel balance);
+}
+
+class BalanceLocalDataSource implements IBalanceLocalDataSource {
+  final SharedPreferences prefs;
+  static const String _key = 'balance';
+
+  BalanceLocalDataSource(this.prefs);
+
+  @override
+  Future<BalanceModel?> getBalance() async {
+    try {
+      final jsonString = prefs.getString(_key);
+      if (jsonString == null) return null;
+      final map = jsonDecode(jsonString) as Map<String, dynamic>;
+      return BalanceModel.fromJson(map);
+    } catch (e) {
+      throw CacheException('Failed to load balance: $e');
+    }
+  }
+
+  @override
+  Future<void> saveBalance(BalanceModel balance) async {
+    try {
+      final jsonString = jsonEncode(balance.toJson());
+      await prefs.setString(_key, jsonString);
+    } catch (e) {
+      throw CacheException('Failed to save balance: $e');
+    }
+  }
+}
+
+===== features\balance\data\datasources\balance_remote_data_source.dart =====
+import '../../../../core/errors/exceptions.dart';
+import '../models/balance_model.dart';
+
+abstract class IBalanceRemoteDataSource {
+  Future<BalanceModel> fetchBalance();
+  Future<void> updateBalance(BalanceModel balance);
+}
+
+class BalanceRemoteDataSource implements IBalanceRemoteDataSource {
+  @override
+  Future<BalanceModel> fetchBalance() {
+    throw ServerException('Remote data source is not available in offline mode');
+  }
+
+  @override
+  Future<void> updateBalance(BalanceModel balance) {
+    throw ServerException('Remote data source is not available in offline mode');
+  }
+}
+
+===== features\balance\data\models\balance_model.dart =====
+import '../../domain/entities/balance.dart';
+
+class BalanceModel {
+  final double amount;
+  final String currency;
+  final DateTime updatedAt;
+
+  BalanceModel({required this.amount, required this.currency, required this.updatedAt});
+
+  factory BalanceModel.fromDomain(Balance balance) => BalanceModel(
+    amount: balance.amount,
+    currency: balance.currency,
+    updatedAt: balance.updatedAt,
+  );
+
+  Balance toDomain() => Balance(
+    amount: amount,
+    currency: currency,
+    updatedAt: updatedAt,
+  );
+
+  factory BalanceModel.fromJson(Map<String, dynamic> json) => BalanceModel(
+    amount: (json['amount'] as num).toDouble(),
+    currency: json['currency'] as String,
+    updatedAt: DateTime.parse(json['updatedAt'] as String),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'amount': amount,
+    'currency': currency,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+}
+
+===== features\balance\data\repositories\balance_repository_impl.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/balance.dart';
+import '../../domain/repositories/i_balance_repository.dart';
+import '../datasources/balance_local_data_source.dart';
+import '../models/balance_model.dart';
+
+class BalanceRepositoryImpl implements IBalanceRepository {
+  final IBalanceLocalDataSource local;
+
+  BalanceRepositoryImpl(this.local);
+
+  @override
+  Future<Either<Failure, Balance>> getBalance() async {
+    try {
+      final localBalance = await local.getBalance();
+      if (localBalance != null) {
+        return Right(localBalance.toDomain());
+      }
+      final initialBalance = Balance.initial('RUB');
+      await local.saveBalance(BalanceModel.fromDomain(initialBalance));
+      return Right(initialBalance);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Balance>> updateBalance(Balance newBalance) async {
+    try {
+      final model = BalanceModel.fromDomain(newBalance);
+      await local.saveBalance(model);
+      return Right(newBalance);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+}
+
+===== features\balance\domain\entities\balance.dart =====
+class Balance {
+  final double amount;
+  final String currency;
+  final DateTime updatedAt;
+
+  const Balance({
+    required this.amount,
+    required this.currency,
+    required this.updatedAt,
+  });
+
+  factory Balance.initial([String currency = 'BYN']) {
+    return Balance(
+      amount: 0.0,
+      currency: currency,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Balance copyWith({
+    double? amount,
+    String? currency,
+    DateTime? updatedAt,
+  }) {
+    return Balance(
+      amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  bool canSpend(double amountToSpend) => amount >= amountToSpend;
+
+  Balance addIncome(double income) => copyWith(
+    amount: amount + income,
+    updatedAt: DateTime.now(),
+  );
+
+  Balance addExpense(double expense) => copyWith(
+    amount: amount - expense,
+    updatedAt: DateTime.now(),
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is Balance &&
+              runtimeType == other.runtimeType &&
+              amount == other.amount &&
+              currency == other.currency &&
+              updatedAt == other.updatedAt;
+
+  @override
+  int get hashCode => Object.hash(amount, currency, updatedAt);
+
+  @override
+  String toString() => 'Balance(amount: $amount, currency: $currency, updatedAt: $updatedAt)';
+}
+
+===== features\balance\domain\repositories\i_balance_repository.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../entities/balance.dart';
+
+abstract class IBalanceRepository {
+  Future<Either<Failure, Balance>> getBalance();
+
+  Future<Either<Failure, Balance>> updateBalance(Balance newBalance);
+}
+
+===== features\balance\domain\usecases\add_expense.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/balance.dart';
+import '../repositories/i_balance_repository.dart';
+
+class AddExpenseParams {
+  final double amount;
+  const AddExpenseParams(this.amount);
+}
+
+class AddExpenseUseCase implements UseCase<Balance, AddExpenseParams> {
+  final IBalanceRepository repository;
+  const AddExpenseUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, Balance>> call(AddExpenseParams params) async {
+    final result = await repository.getBalance();
+    return result.fold(
+          (failure) => Left(failure),
+          (balance) {
+        if (!balance.canSpend(params.amount)) {
+          return Left(ServerFailure('Недостаточно средств'));
+        }
+        final newBalance = balance.addExpense(params.amount);
+        return repository.updateBalance(newBalance);
+      },
+    );
+  }
+}
+
+===== features\balance\domain\usecases\add_income.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/balance.dart';
+import '../repositories/i_balance_repository.dart';
+
+class AddIncomeParams {
+  final double amount;
+  const AddIncomeParams(this.amount);
+}
+
+class AddIncomeUseCase implements UseCase<Balance, AddIncomeParams> {
+  final IBalanceRepository repository;
+  const AddIncomeUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, Balance>> call(AddIncomeParams params) async {
+    final result = await repository.getBalance();
+    return result.fold(
+          (failure) => Left(failure),
+          (balance) {
+        final newBalance = balance.addIncome(params.amount);
+        return repository.updateBalance(newBalance);
+      },
+    );
+  }
+}
+
+===== features\balance\domain\usecases\get_balance.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/balance.dart';
+import '../repositories/i_balance_repository.dart';
+
+class GetBalanceUseCase implements UseCase<Balance, NoParams> {
+  final IBalanceRepository repository;
+  const GetBalanceUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, Balance>> call(NoParams params) {
+    return repository.getBalance();
+  }
+}
+
+===== features\balance\domain\usecases\update_balance.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/balance.dart';
+import '../repositories/i_balance_repository.dart';
+
+class UpdateBalanceParams {
+  final Balance balance;
+  const UpdateBalanceParams(this.balance);
+}
+
+class UpdateBalanceUseCase implements UseCase<Balance, UpdateBalanceParams> {
+  final IBalanceRepository repository;
+  const UpdateBalanceUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, Balance>> call(UpdateBalanceParams params) {
+    return repository.updateBalance(params.balance);
+  }
+}
+
+===== features\balance\presentation\bloc\balance_bloc.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'balance_event.dart';
+import 'balance_state.dart';
+import '../../domain/usecases/get_balance.dart';
+import '../../domain/usecases/update_balance.dart';
+import '../../../../core/usecases/usecase.dart';
+
+class BalanceBloc extends Bloc<BalanceEvent, BalanceState> {
+  final GetBalanceUseCase getBalance;
+  final UpdateBalanceUseCase updateBalance;
+
+  BalanceBloc({
+    required this.getBalance,
+    required this.updateBalance,
+  }) : super(BalanceInitial()) {
+    on<BalanceLoadRequested>(_onLoad);
+    on<BalanceUpdateRequested>(_onUpdate);
+  }
+
+  Future<void> _onLoad(
+      BalanceLoadRequested event,
+      Emitter<BalanceState> emit,
+      ) async {
+    emit(BalanceLoading());
+    final result = await getBalance(NoParams());
+    result.fold(
+          (failure) => emit(BalanceError(failure.message)),
+          (balance) => emit(BalanceLoaded(balance)),
+    );
+  }
+
+  Future<void> _onUpdate(
+      BalanceUpdateRequested event,
+      Emitter<BalanceState> emit,
+      ) async {
+    emit(BalanceLoading());
+    final currentResult = await getBalance(NoParams());
+    await currentResult.fold(
+          (failure) async => emit(BalanceError(failure.message)),
+          (currentBalance) async {
+        final newBalance = currentBalance.copyWith(
+          amount: event.newAmount,
+          updatedAt: DateTime.now(),
+        );
+        final result = await updateBalance(UpdateBalanceParams(newBalance));
+        result.fold(
+              (failure) => emit(BalanceError(failure.message)),
+              (updated) => emit(BalanceLoaded(updated)),
+        );
+      },
+    );
+  }
+}
+
+===== features\balance\presentation\bloc\balance_event.dart =====
+import 'package:equatable/equatable.dart';
+
+abstract class BalanceEvent extends Equatable {
+  const BalanceEvent();
+  @override
+  List<Object> get props => [];
+}
+
+class BalanceLoadRequested extends BalanceEvent {}
+
+class BalanceUpdateRequested extends BalanceEvent {
+  final double newAmount;
+  const BalanceUpdateRequested(this.newAmount);
+  @override
+  List<Object> get props => [newAmount];
+}
+
+class BalanceAddIncomeRequested extends BalanceEvent {
+  final double amount;
+  const BalanceAddIncomeRequested(this.amount);
+  @override
+  List<Object> get props => [amount];
+}
+
+class BalanceAddExpenseRequested extends BalanceEvent {
+  final double amount;
+  const BalanceAddExpenseRequested(this.amount);
+  @override
+  List<Object> get props => [amount];
+}
+
+===== features\balance\presentation\bloc\balance_state.dart =====
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/balance.dart';
+
+abstract class BalanceState extends Equatable {
+  const BalanceState();
+  @override
+  List<Object> get props => [];
+}
+
+class BalanceInitial extends BalanceState {}
+
+class BalanceLoading extends BalanceState {}
+
+class BalanceLoaded extends BalanceState {
+  final Balance balance;
+  const BalanceLoaded(this.balance);
+  @override
+  List<Object> get props => [balance];
+}
+
+class BalanceError extends BalanceState {
+  final String message;
+  const BalanceError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\balance\presentation\screens\balance_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/balance_bloc.dart';
+import '../bloc/balance_event.dart';
+import '../bloc/balance_state.dart';
+import '../widgets/balance_card.dart';
+
+class BalanceScreen extends StatelessWidget {
+  const BalanceScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Баланс'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<BalanceBloc>().add(BalanceLoadRequested());
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<BalanceBloc, BalanceState>(
+        listener: (context, state) {
+          if (state is BalanceError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is BalanceLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is BalanceLoaded) {
+            return Center(
+              child: BalanceCard(balance: state.balance),
+            );
+          } else {
+            return const Center(child: Text('Ошибка загрузки баланса'));
+          }
+        },
+      ),
+    );
+  }
+}
+
+===== features\balance\presentation\widgets\balance_card.dart =====
+import 'package:flutter/material.dart';
+import '../../domain/entities/balance.dart';
+
+class BalanceCard extends StatelessWidget {
+  final Balance balance;
+
+  const BalanceCard({super.key, required this.balance});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Текущий баланс',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${balance.amount.toStringAsFixed(2)} ${balance.currency}',
+              style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Обновлён: ${_formatDate(balance.updatedAt)}',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}.${date.month}.${date.year} ${date.hour}:${date.minute}';
+  }
+}
+
+===== features\categories\data\datasources\category_local_data_source.dart =====
+import 'dart:convert';
+
+import 'package:BlueFin/core/errors/exceptions.dart';
+import 'package:BlueFin/features/categories/data/models/category_model.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+abstract class ICategoryLocalDataSource {
+  Future<List<CategoryModel>> getCategories();
+  Future<void> saveCategories(List<CategoryModel> categories);
+}
+
+class CategoryLocalDataSource implements ICategoryLocalDataSource{
+  final SharedPreferences prefs;
+  static const String _key = 'Categories';
+  CategoryLocalDataSource(this.prefs);
+
+  @override
+  Future<List<CategoryModel>> getCategories() async{
+    try
+      {
+        final jsonString = prefs.getString(_key);
+        if (jsonString == null){return [];}
+        final List<dynamic> list = jsonDecode(jsonString);
+        return list.map((e) => CategoryModel.fromJson(e as Map<String, dynamic>)).toList();
+      } catch(e){
+      throw CacheException('Не удалось загрузить категории');
+    };
+  }
+
+  @override
+  Future<void> saveCategories(List<CategoryModel> categories) async{
+    final jsonString = jsonEncode(categories.map((e) => e.toJson()).toList());
+    try {
+      await prefs.setString(_key, jsonString);
+    } catch (e) {
+      throw CacheException('Не удалось сохранить категории');
+    };
+  }
+
+
+}
+
+===== features\categories\data\models\category_model.dart =====
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+
+class CategoryModel {
+  final String id;
+  final String name;
+  final TransactionType type;
+
+
+  CategoryModel({
+    required this.id,
+    required this.name,
+    required this.type});
+
+  factory CategoryModel.fromDomain(Category category) =>
+      CategoryModel(
+          id: category.id,
+          name: category.name,
+          type: category.type
+      );
+
+  Category toDomain() => Category(
+      id: id,
+      name: name,
+      type: type == 'income' ? TransactionType.income : TransactionType.expense
+  );
+
+  factory CategoryModel.fromJson(Map<String,dynamic> json) => CategoryModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      type: json['type'] as TransactionType
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'type': type
+  };
+}
+
+===== features\categories\data\repositories\category_repository_impl.dart =====
+import 'package:BlueFin/core/errors/exceptions.dart';
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/features/categories/data/datasources/category_local_data_source.dart';
+import 'package:BlueFin/features/categories/data/models/category_model.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+import 'package:dartz/dartz.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+
+
+class CategoryRepositoryImpl implements ICategoryRepository {
+  final ICategoryLocalDataSource local;
+
+  CategoryRepositoryImpl(this.local);
+
+  @override
+  Future<Either<Failure, List<Category>>> getCategories() async {
+    try {
+      final list = await local.getCategories();
+      return Right(list.map((e) => e.toDomain()).toList());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> addCategory(Category category) async {
+    try {
+      final model = CategoryModel.fromDomain(category);
+      final list = await local.getCategories();
+      list.add(model);
+      await local.saveCategories(list);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+
+  @override
+  Future<Either<Failure, void>> deleteCategory(String id) async {
+    try {
+      final list = await local.getCategories();
+      list.removeWhere((e) => e.id == id);
+      await local.saveCategories(list);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+
+
+  @override
+  Future<Either<Failure, void>> updateCategory(Category category) async {
+    try {
+      final model = CategoryModel.fromDomain(category);
+      final list = await local.getCategories();
+      final index = list.indexWhere((e) => e.id == category.id);
+      if (index != -1) {
+        list[index] = model;
+        await local.saveCategories(list);
+      }
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  }
+
+===== features\categories\domain\entities\category.dart =====
+import '../../../transactions/domain/entities/transaction.dart';
+
+class Category {
+  final String id;
+  final String name;
+  final TransactionType type;
+
+  const Category({
+    required this.id,
+    required this.name,
+    required this.type,
+  });
+
+  Category copyWith({
+    String? id,
+    String? name,
+    TransactionType? type,
+  }) {
+    return Category(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Category &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          type == other.type;
+
+  @override
+  int get hashCode => Object.hash(name,type);
+
+  String get transactionType => '$this.type';
+}
+
+
+===== features\categories\domain\repositories\i_category_repository.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+import 'package:dartz/dartz.dart';
+
+abstract class ICategoryRepository {
+  Future<Either<Failure, List<Category>>> getCategories();
+  Future<Either<Failure, void>> addCategory(Category category);
+  Future<Either<Failure, void>> updateCategory(Category category);
+  Future<Either<Failure, void>> deleteCategory(String id);
+}
+
+===== features\categories\domain\usecases\add_category.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+import 'package:dartz/dartz.dart';
+
+class AddCategoryParams {
+  final Category category;
+  const AddCategoryParams(this.category);
+}
+
+class AddCategoryUseCase implements UseCase<void, AddCategoryParams> {
+  final ICategoryRepository repository;
+  AddCategoryUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(AddCategoryParams params) {
+    return repository.addCategory(params.category);
+  }
+}
+
+===== features\categories\domain\usecases\delete_category.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+import 'package:dartz/dartz.dart';
+
+class DeleteCategoryParams{
+    final String id;
+    const DeleteCategoryParams(this.id);
+}
+
+class DeleteCategoryUseCase implements UseCase<void, DeleteCategoryParams> {
+  final ICategoryRepository repository;
+  const DeleteCategoryUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(DeleteCategoryParams params) {
+    return repository.deleteCategory(params.id);
+  }
+
+}
+
+===== features\categories\domain\usecases\get_categories.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+import 'package:dartz/dartz.dart';
+
+class GetCategoriesUseCase implements UseCase<List<Category>, NoParams> {
+  final ICategoryRepository repository;
+  const GetCategoriesUseCase(this.repository);
+  @override
+  Future<Either<Failure, List<Category>>> call(NoParams params) {
+    return repository.getCategories();
+  }
+}
+
+===== features\categories\domain\usecases\update_category.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/repositories/i_category_repository.dart';
+import 'package:dartz/dartz.dart';
+
+class UpdateCategoryParams {
+  final Category category;
+  const UpdateCategoryParams(this.category);
+}
+
+class UpdateCategoryUseCase implements UseCase<void, UpdateCategoryParams> {
+  final ICategoryRepository repository;
+  const UpdateCategoryUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(UpdateCategoryParams params) {
+    return repository.updateCategory(params.category);
+  }
+
+}
+
+===== features\categories\presentation\bloc\categories_bloc.dart =====
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/domain/usecases/add_category.dart';
+import 'package:BlueFin/features/categories/domain/usecases/delete_category.dart';
+import 'package:BlueFin/features/categories/domain/usecases/get_categories.dart';
+import 'package:BlueFin/features/categories/domain/usecases/update_category.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_event.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_state.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+class CategoriesBloc extends Bloc<CategoriesEvent, CategoriesState> {
+  final AddCategoryUseCase addCategory;
+  final DeleteCategoryUseCase deleteCategory;
+  final GetCategoriesUseCase getCategories;
+  final UpdateCategoryUseCase updateCategory;
+
+  CategoriesBloc({
+    required this.addCategory,
+    required this.deleteCategory,
+    required this.getCategories,
+    required this.updateCategory,
+  }) : super(CategoriesInitial()) {
+    on<CategoryLoadRequested>(_onLoad);
+    on<CategoryAddRequested>(_onAdd);
+    on<CategoryDeleteRequested>(_onDelete);
+    on<CategoryUpdateRequested>(_onUpdate);
+  }
+
+  Future<void> _onLoad(
+      CategoryLoadRequested event,
+      Emitter<CategoriesState> emit,
+      ) async {
+    emit(CategoriesLoading());
+    final result = await getCategories(NoParams());
+    result.fold(
+          (failure) => emit(CategoriesError(failure.message)),
+          (categories) => emit(CategoriesLoaded(categories)),
+    );
+  }
+
+  Future<void> _onAdd(
+      CategoryAddRequested event,
+      Emitter<CategoriesState> emit,
+      ) async {
+    emit(CategoriesLoading());
+    final result = await addCategory(AddCategoryParams(event.category));
+    result.fold(
+          (failure) => emit(CategoriesError(failure.message)),
+          (_) {
+        add(CategoryLoadRequested());
+      },
+    );
+  }
+
+  Future<void> _onDelete(
+      CategoryDeleteRequested event,
+      Emitter<CategoriesState> emit,
+      ) async {
+    emit(CategoriesLoading());
+    final result = await deleteCategory(DeleteCategoryParams(event.id));
+    result.fold(
+          (failure) => emit(CategoriesError(failure.message)),
+          (_) {
+        add(CategoryLoadRequested());
+      },
+    );
+  }
+
+  Future<void> _onUpdate(
+      CategoryUpdateRequested event,
+      Emitter<CategoriesState> emit,
+      ) async {
+    emit(CategoriesLoading());
+    final result = await updateCategory(UpdateCategoryParams(event.category));
+    result.fold(
+          (failure) => emit(CategoriesError(failure.message)),
+          (_) {
+        add(CategoryLoadRequested());
+      },
+    );
+  }
+}
+
+===== features\categories\presentation\bloc\categories_event.dart =====
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:equatable/equatable.dart';
+
+abstract class CategoriesEvent extends Equatable{
+  const CategoriesEvent();
+  @override
+  List<Object> get props => [];
+}
+
+class CategoryAddRequested extends CategoriesEvent {
+  final Category category;
+  CategoryAddRequested(this.category);
+
+  @override
+  List<Object> get props => [category];
+}
+
+class CategoryUpdateRequested extends CategoriesEvent{
+  final Category category;
+  CategoryUpdateRequested(this.category);
+
+  @override
+  List<Object> get props => [category];
+}
+
+class CategoryDeleteRequested extends CategoriesEvent{
+  final String id;
+  CategoryDeleteRequested(this.id);
+
+  @override
+  List<Object> get props => [id];
+}
+
+class CategoryLoadRequested extends CategoriesEvent{}
+
+===== features\categories\presentation\bloc\categories_state.dart =====
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_event.dart';
+import 'package:equatable/equatable.dart';
+
+abstract class CategoriesState extends Equatable{
+  const CategoriesState();
+
+  @override
+  List<Object> get props => [];
+}
+
+class CategoriesInitial extends CategoriesState{
+
+}
+
+class CategoriesLoading extends CategoriesState{
+
+}
+
+class CategoriesLoaded extends CategoriesState{
+  final List<Category> categories;
+  const CategoriesLoaded(this.categories);
+
+  @override
+  List<Object> get props => [categories];
+}
+
+class CategoriesError extends CategoriesState{
+  final String message;
+  const CategoriesError(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
+class CategoriesOperationSuccess extends CategoriesState{
+  final String message;
+  const CategoriesOperationSuccess(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\categories\presentation\screens\add_edit_category_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../transactions/domain/entities/transaction.dart';
+import '../../domain/entities/category.dart';
+import '../bloc/categories_bloc.dart';
+import '../bloc/categories_event.dart';
+
+class AddEditCategoryScreen extends StatefulWidget {
+  final Category? category;
+  const AddEditCategoryScreen({super.key, this.category});
+
+  @override
+  State<AddEditCategoryScreen> createState() => _AddEditCategoryScreenState();
+}
+
+class _AddEditCategoryScreenState extends State<AddEditCategoryScreen> {
+  final _nameController = TextEditingController();
+  TransactionType _selectedType = TransactionType.expense;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.category != null) {
+      _nameController.text = widget.category!.name;
+      _selectedType = widget.category!.type;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Введите название категории')),
+      );
+      return;
+    }
+    final category = Category(
+      id: widget.category?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      type: _selectedType,
+    );
+    if (widget.category == null) {
+      context.read<CategoriesBloc>().add(CategoryAddRequested(category));
+    } else {
+      context.read<CategoriesBloc>().add(CategoryUpdateRequested(category));
+    }
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.category == null ? 'Добавить категорию' : 'Редактировать категорию'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Название категории',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<TransactionType>(
+              segments: const [
+                ButtonSegment(
+                  value: TransactionType.income,
+                  label: Text('Доход'),
+                  icon: Icon(Icons.arrow_upward),
+                ),
+                ButtonSegment(
+                  value: TransactionType.expense,
+                  label: Text('Расход'),
+                  icon: Icon(Icons.arrow_downward),
+                ),
+              ],
+              selected: {_selectedType},
+              onSelectionChanged: (Set<TransactionType> newSelection) {
+                setState(() {
+                  _selectedType = newSelection.first;
+                });
+              },
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _save,
+              child: Text(widget.category == null ? 'Добавить' : 'Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+===== features\categories\presentation\screens\categories_list_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_bloc.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_event.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_state.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+import '../../../transactions/domain/entities/transaction.dart';
+import 'add_edit_category_screen.dart';
+import 'add_edit_category_screen.dart';
+
+class CategoriesListScreen extends StatelessWidget {
+  const CategoriesListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Категории'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AddEditCategoryScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<CategoriesBloc, CategoriesState>(
+        listener: (context, state) {
+          if (state is CategoriesError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Ошибка: ${state.message}')),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is CategoriesLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is CategoriesLoaded) {
+            final categories = state.categories;
+            if (categories.isEmpty) {
+              return const Center(
+                child: Text('Нет категорий. Добавьте первую!'),
+              );
+            }
+            return ListView.builder(
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final category = categories[index];
+                return _buildCategoryTile(context, category);
+              },
+            );
+          } else if (state is CategoriesError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Ошибка: ${state.message}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context
+                          .read<CategoriesBloc>()
+                          .add(CategoryLoadRequested());
+                    },
+                    child: const Text('Повторить'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            return const Center(child: Text('Загрузите категории'));
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile(BuildContext context, Category category) {
+    final isIncome = category.type == TransactionType.income;
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: isIncome ? Colors.green.shade100 : Colors.red.shade100,
+        child: Icon(
+          isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+          color: isIncome ? Colors.green : Colors.red,
+        ),
+      ),
+      title: Text(category.name),
+      subtitle: Text(isIncome ? 'Доход' : 'Расход'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.blue),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEditCategoryScreen(category: category),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () {
+              _showDeleteConfirmation(context, category.id);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, String id) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Удалить категорию?'),
+        content: const Text('Это действие нельзя отменить.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<CategoriesBloc>().add(CategoryDeleteRequested(id));
+              Navigator.pop(context);
+            },
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+===== features\categories\presentation\widgets\category_dropdown.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_bloc.dart';
+import 'package:BlueFin/features/categories/presentation/bloc/categories_state.dart';
+
+class CategoryDropdown extends StatelessWidget {
+  final String? selectedCategoryId;
+  final ValueChanged<String?> onChanged;
+
+  const CategoryDropdown({
+    super.key,
+    required this.selectedCategoryId,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<CategoriesBloc, CategoriesState>(
+      builder: (context, state) {
+        if (state is CategoriesLoading) {
+          return const CircularProgressIndicator();
+        } else if (state is CategoriesLoaded) {
+          final categories = state.categories;
+          if (categories.isEmpty) {
+            return const Text('Нет категорий. Создайте их в настройках.');
+          }
+          final effectiveValue = selectedCategoryId ?? (categories.isNotEmpty ? categories.first.id : null);
+          return DropdownButtonFormField<String>(
+            value: effectiveValue,
+            decoration: const InputDecoration(
+              labelText: 'Категория',
+              border: OutlineInputBorder(),
+            ),
+            items: categories.map((category) {
+              return DropdownMenuItem<String>(
+                value: category.id,
+                child: Text(category.name),
+              );
+            }).toList(),
+            onChanged: onChanged,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Выберите категорию';
+              }
+              return null;
+            },
+          );
+        } else if (state is CategoriesError) {
+          return Text('Ошибка загрузки категорий: ${state.message}');
+        } else {
+          return const Text('Загрузите категории');
+        }
+      },
+    );
+  }
+}
+
+===== features\currency\data\datasources\currency_local_data_source.dart =====
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/exchange_rate_model.dart';
+
+abstract class ICurrencyLocalDataSource {
+  Future<List<ExchangeRateModel>> getRates();
+  Future<void> saveRates(List<ExchangeRateModel> rates);
+}
+
+class CurrencyLocalDataSource implements ICurrencyLocalDataSource {
+  final SharedPreferences prefs;
+  static const String _key = 'exchange_rates';
+
+  CurrencyLocalDataSource(this.prefs);
+
+  @override
+  Future<List<ExchangeRateModel>> getRates() async {
+    try {
+      final jsonString = prefs.getString(_key);
+      if (jsonString == null) return [];
+      final List<dynamic> list = jsonDecode(jsonString);
+      return list.map((e) => ExchangeRateModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw CacheException('Failed to load exchange rates: $e');
+    }
+  }
+
+  @override
+  Future<void> saveRates(List<ExchangeRateModel> rates) async {
+    try {
+      final jsonString = jsonEncode(rates.map((e) => e.toJson()).toList());
+      await prefs.setString(_key, jsonString);
+    } catch (e) {
+      throw CacheException('Failed to save exchange rates: $e');
+    }
+  }
+}
+
+===== features\currency\data\datasources\currency_remote_data_source.dart =====
+import 'package:dio/dio.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/rate_model.dart';
+
+abstract class ICurrencyRemoteDataSource {
+  Future<List<RateModel>> fetchRates();
+}
+
+class CurrencyRemoteDataSource implements ICurrencyRemoteDataSource {
+  final Dio dio;
+
+  CurrencyRemoteDataSource(this.dio);
+
+  @override
+  Future<List<RateModel>> fetchRates() async {
+    try {
+      final response = await dio.get(
+        'https://api.nbrb.by/exrates/rates',
+        queryParameters: {'periodicity': 0},
+      );
+      if (response.statusCode != 200) {
+        throw ServerException('Failed to fetch rates from NBRB API');
+      }
+      final List<dynamic> data = response.data as List;
+      return data.map((json) => RateModel.fromJson(json as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ServerException('Network error: ${e.message}');
+    } catch (e) {
+      throw ServerException('Unexpected error: $e');
+    }
+  }
+}
+
+===== features\currency\data\models\currency_model.dart =====
+import '../../domain/entities/exchange_rate.dart';
+
+class CurrencyModel {
+  final int curId;
+  final String curAbbreviation;
+  final int curScale;
+  final String curName;
+
+  CurrencyModel({
+    required this.curId,
+    required this.curAbbreviation,
+    required this.curScale,
+    required this.curName,
+  });
+
+  factory CurrencyModel.fromJson(Map<String, dynamic> json) {
+    return CurrencyModel(
+      curId: json['Cur_ID'] as int,
+      curAbbreviation: json['Cur_Abbreviation'] as String,
+      curScale: json['Cur_Scale'] as int,
+      curName: json['Cur_Name'] as String,
+    );
+  }
+}
+
+===== features\currency\data\models\exchange_rate_model.dart =====
+  import '../../domain/entities/exchange_rate.dart';
+
+  class ExchangeRateModel {
+  final String baseCurrency;
+  final String targetCurrency;
+  final double rate;
+  final DateTime updatedAt;
+
+  ExchangeRateModel({
+  required this.baseCurrency,
+  required this.targetCurrency,
+  required this.rate,
+  required this.updatedAt,
+  });
+
+  factory ExchangeRateModel.fromDomain(ExchangeRate rate) => ExchangeRateModel(
+  baseCurrency: rate.baseCurrency,
+  targetCurrency: rate.targetCurrency,
+  rate: rate.rate,
+  updatedAt: rate.updatedAt,
+  );
+
+  ExchangeRate toDomain() => ExchangeRate(
+  baseCurrency: baseCurrency,
+  targetCurrency: targetCurrency,
+  rate: rate,
+  updatedAt: updatedAt,
+  );
+
+  factory ExchangeRateModel.fromJson(Map<String, dynamic> json) =>
+  ExchangeRateModel(
+  baseCurrency: json['baseCurrency'] as String,
+  targetCurrency: json['targetCurrency'] as String,
+  rate: (json['rate'] as num).toDouble(),
+  updatedAt: DateTime.parse(json['updatedAt'] as String),
+  );
+
+  Map<String, dynamic> toJson() => {
+  'baseCurrency': baseCurrency,
+  'targetCurrency': targetCurrency,
+  'rate': rate,
+  'updatedAt': updatedAt.toIso8601String(),
+  };
+  }
+
+===== features\currency\data\models\rate_model.dart =====
+import '../../domain/entities/exchange_rate.dart';
+
+class RateModel {
+  final int curId;
+  final DateTime date;
+  final String curAbbreviation;
+  final int curScale;
+  final String curName;
+  final double curOfficialRate;
+
+  RateModel({
+    required this.curId,
+    required this.date,
+    required this.curAbbreviation,
+    required this.curScale,
+    required this.curName,
+    required this.curOfficialRate,
+  });
+
+  factory RateModel.fromJson(Map<String, dynamic> json) {
+    return RateModel(
+      curId: json['Cur_ID'] as int,
+      date: DateTime.parse(json['Date'] as String),
+      curAbbreviation: json['Cur_Abbreviation'] as String,
+      curScale: json['Cur_Scale'] as int,
+      curName: json['Cur_Name'] as String,
+      curOfficialRate: (json['Cur_OfficialRate'] as num).toDouble(),
+    );
+  }
+
+  ExchangeRate toDomain() {
+    return ExchangeRate(
+      baseCurrency: 'BYN',
+      targetCurrency: curAbbreviation,
+      rate: curOfficialRate / curScale,
+      updatedAt: date,
+    );
+  }
+}
+
+===== features\currency\data\repositories\currency_repository_impl.dart =====
+import 'package:BlueFin/core/network/network_info.dart';
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/exchange_rate.dart';
+import '../../domain/repositories/i_currency_repository.dart';
+import '../datasources/currency_local_data_source.dart';
+import '../datasources/currency_remote_data_source.dart';
+import '../models/exchange_rate_model.dart';
+
+class CurrencyRepositoryImpl implements ICurrencyRepository {
+  final ICurrencyLocalDataSource local;
+  final ICurrencyRemoteDataSource remote;
+  final NetworkInfo networkInfo;
+
+  CurrencyRepositoryImpl({
+    required this.local,
+    required this.remote,
+    required this.networkInfo
+  });
+
+  @override
+  Future<Either<Failure, List<ExchangeRate>>> getExchangeRates() async {
+    if (await networkInfo.isConnected) {
+      try {
+        final remoteRates = await remote.fetchRates();
+        final domainRates = remoteRates.map((rate) => rate.toDomain()).toList();
+
+        final modelsToSave = domainRates.map((r) =>
+            ExchangeRateModel.fromDomain(r)).toList();
+        await local.saveRates(modelsToSave);
+
+        return Right(domainRates);
+      } catch (e) {
+        return await _getCachedRates();
+      }
+    } else return await _getCachedRates();
+  }
+
+
+   Future<Either<Failure, List<ExchangeRate>>> _getCachedRates() async{
+    try{
+      final localRates = await local.getRates();
+      if (localRates.isNotEmpty) {
+        return Right(localRates.map((model) => model.toDomain()).toList());
+      } else return Left(ServerFailure('Нет сохраненных курсов'));
+    } catch(e){
+      return Left(CacheFailure('Нет сохраненных курсов'));
+    }
+   }
+
+  @override
+  Future<Either<Failure, double>> convertCurrency({
+    required String fromCurrency,
+    required String toCurrency,
+    required double amount,
+  }) async {
+    if (fromCurrency == toCurrency) {
+      return Right(amount);
+    }
+
+    final ratesResult = await getExchangeRates();
+    if (ratesResult.isLeft()) {
+      return Left(ratesResult.fold((l) => l, (r) => throw Exception()));
+    }
+
+    final rates = ratesResult.fold((l) => <ExchangeRate>[], (r) => r);
+
+    double amountInByn;
+
+    if (fromCurrency == 'BYN') {
+      amountInByn = amount;
+    } else {
+      final fromRate = rates.firstWhere(
+            (r) => r.targetCurrency == fromCurrency,
+        orElse: () => throw CacheFailure('Курс для $fromCurrency не найден'),
+      );
+      amountInByn = amount * fromRate.rate;
+    }
+
+    if (toCurrency == 'BYN') {
+      return Right(amountInByn);
+    } else {
+      final toRate = rates.firstWhere(
+            (r) => r.targetCurrency == toCurrency,
+        orElse: () => throw CacheFailure('Курс для $toCurrency не найден'),
+      );
+      return Right(amountInByn / toRate.rate);
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateRate(ExchangeRate rate) async {
+    try {
+      final models = await local.getRates();
+      final index = models.indexWhere(
+            (r) => r.baseCurrency == rate.baseCurrency && r.targetCurrency == rate.targetCurrency,
+      );
+      if (index == -1) {
+        models.add(ExchangeRateModel.fromDomain(rate));
+      } else {
+        models[index] = ExchangeRateModel.fromDomain(rate);
+      }
+      await local.saveRates(models);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+}
+
+===== features\currency\domain\entities\exchange_rate.dart =====
+class ExchangeRate {
+  final String baseCurrency;
+  final String targetCurrency;
+  final double rate;
+  final DateTime updatedAt;
+
+  const ExchangeRate({
+    required this.baseCurrency,
+    required this.targetCurrency,
+    required this.rate,
+    required this.updatedAt,
+  });
+
+  ExchangeRate copyWith({
+    String? baseCurrency,
+    String? targetCurrency,
+    double? rate,
+    DateTime? updatedAt,
+  }) {
+    return ExchangeRate(
+      baseCurrency: baseCurrency ?? this.baseCurrency,
+      targetCurrency: targetCurrency ?? this.targetCurrency,
+      rate: rate ?? this.rate,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is ExchangeRate &&
+              runtimeType == other.runtimeType &&
+              baseCurrency == other.baseCurrency &&
+              targetCurrency == other.targetCurrency &&
+              rate == other.rate &&
+              updatedAt == other.updatedAt;
+
+  @override
+  int get hashCode => Object.hash(baseCurrency, targetCurrency, rate, updatedAt);
+
+  @override
+  String toString() =>
+      'ExchangeRate(baseCurrency: $baseCurrency, targetCurrency: $targetCurrency, rate: $rate, updatedAt: $updatedAt)';
+}
+
+===== features\currency\domain\repositories\i_currency_repository.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../entities/exchange_rate.dart';
+
+abstract class ICurrencyRepository {
+  Future<Either<Failure, List<ExchangeRate>>> getExchangeRates();
+
+  Future<Either<Failure, double>> convertCurrency({
+    required String fromCurrency,
+    required String toCurrency,
+    required double amount,
+  });
+
+  Future<Either<Failure, void>> updateRate(ExchangeRate rate);
+}
+
+===== features\currency\domain\usecases\convert_currency.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../repositories/i_currency_repository.dart';
+
+class ConvertCurrencyParams {
+  final String fromCurrency;
+  final String toCurrency;
+  final double amount;
+
+  const ConvertCurrencyParams({
+    required this.fromCurrency,
+    required this.toCurrency,
+    required this.amount,
+  });
+}
+
+class ConvertCurrencyUseCase implements UseCase<double, ConvertCurrencyParams> {
+  final ICurrencyRepository repository;
+  const ConvertCurrencyUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, double>> call(ConvertCurrencyParams params) {
+    return repository.convertCurrency(
+      fromCurrency: params.fromCurrency,
+      toCurrency: params.toCurrency,
+      amount: params.amount,
+    );
+  }
+}
+
+===== features\currency\domain\usecases\get_exchange_rates.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/exchange_rate.dart';
+import '../repositories/i_currency_repository.dart';
+
+class GetExchangeRatesUseCase implements UseCase<List<ExchangeRate>, NoParams> {
+  final ICurrencyRepository repository;
+  const GetExchangeRatesUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, List<ExchangeRate>>> call(NoParams params) {
+    return repository.getExchangeRates();
+  }
+}
+
+===== features\currency\presentation\cubit\currency_cubit.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'currency_state.dart';
+import '../../domain/usecases/get_exchange_rates.dart';
+import '../../domain/usecases/convert_currency.dart';
+import '../../../../core/usecases/usecase.dart';
+
+class CurrencyCubit extends Cubit<CurrencyState> {
+  final GetExchangeRatesUseCase getExchangeRates;
+  final ConvertCurrencyUseCase convertCurrency;
+
+  CurrencyCubit({
+    required this.getExchangeRates,
+    required this.convertCurrency,
+  }) : super(CurrencyInitial());
+
+  Future<void> loadRates() async {
+    emit(CurrencyLoading());
+    final result = await getExchangeRates(NoParams());
+    result.fold(
+          (failure) => emit(CurrencyError(failure.message)),
+          (rates) => emit(CurrencyRatesLoaded(rates)),
+    );
+  }
+
+  Future<void> convert({
+    required String from,
+    required String to,
+    required double amount,
+  }) async {
+    emit(CurrencyLoading());
+    final result = await convertCurrency(
+      ConvertCurrencyParams(
+        fromCurrency: from,
+        toCurrency: to,
+        amount: amount,
+      ),
+    );
+    result.fold(
+          (failure) => emit(CurrencyError(failure.message)),
+          (resultAmount) => emit(
+        CurrencyConversionResult(
+          result: resultAmount,
+          fromCurrency: from,
+          toCurrency: to,
+          amount: amount,
+        ),
+      ),
+    );
+  }
+}
+
+===== features\currency\presentation\cubit\currency_state.dart =====
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/exchange_rate.dart';
+
+abstract class CurrencyState extends Equatable {
+  const CurrencyState();
+  @override
+  List<Object> get props => [];
+}
+
+class CurrencyInitial extends CurrencyState {}
+
+class CurrencyLoading extends CurrencyState {}
+
+class CurrencyRatesLoaded extends CurrencyState {
+  final List<ExchangeRate> rates;
+  const CurrencyRatesLoaded(this.rates);
+  @override
+  List<Object> get props => [rates];
+}
+
+class CurrencyConversionResult extends CurrencyState {
+  final double result;
+  final String fromCurrency;
+  final String toCurrency;
+  final double amount;
+  const CurrencyConversionResult({
+    required this.result,
+    required this.fromCurrency,
+    required this.toCurrency,
+    required this.amount,
+  });
+  @override
+  List<Object> get props => [result, fromCurrency, toCurrency, amount];
+}
+
+class CurrencyError extends CurrencyState {
+  final String message;
+  const CurrencyError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\currency\presentation\screens\currency_converter_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../cubit/currency_cubit.dart';
+import '../cubit/currency_state.dart';
+import '../widgets/currency_dropdown.dart';
+
+class CurrencyConverterScreen extends StatefulWidget {
+  const CurrencyConverterScreen({super.key});
+
+  @override
+  State<CurrencyConverterScreen> createState() => _CurrencyConverterScreenState();
+}
+
+class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
+  final TextEditingController _amountController = TextEditingController();
+  String _fromCurrency = 'BYN';
+  String _toCurrency = 'USD';
+  final List<String> _currencies = ['BYN', 'RUB', 'USD', 'EUR', 'CNY'];
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<CurrencyCubit>().loadRates();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  void _convert() {
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Введите корректную сумму')),
+      );
+      return;
+    }
+    context.read<CurrencyCubit>().convert(
+      from: _fromCurrency,
+      to: _toCurrency,
+      amount: amount,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Конвертер валют'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<CurrencyCubit>().loadRates();
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<CurrencyCubit, CurrencyState>(
+        listener: (context, state) {
+          if (state is CurrencyError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Ошибка: ${state.message}')),
+            );
+          }
+          if (state is CurrencyConversionResult) {
+            showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('Результат конвертации'),
+                content: Text(
+                  '${state.amount} ${state.fromCurrency} = ${state.result.toStringAsFixed(2)} ${state.toCurrency}',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is CurrencyLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is CurrencyRatesLoaded) {
+            final rates = state.rates;
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CurrencyDropdown(
+                          selectedCurrency: _fromCurrency,
+                          currencies: _currencies,
+                          onChanged: (value) {
+                            if (value != null) setState(() => _fromCurrency = value);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: CurrencyDropdown(
+                          selectedCurrency: _toCurrency,
+                          currencies: _currencies,
+                          onChanged: (value) {
+                            if (value != null) setState(() => _toCurrency = value);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Сумма',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _convert,
+                    child: const Text('Конвертировать'),
+                  ),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: rates.length,
+                      itemBuilder: (ctx, index) {
+                        final rate = rates[index];
+                        return Card(
+                          child: ListTile(
+                            title: Text('${rate.baseCurrency} → ${rate.targetCurrency}'),
+                            trailing: Text(rate.rate.toStringAsFixed(4)),
+                            subtitle: Text('Обновлён: ${_formatDate(rate.updatedAt)}'),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (state is CurrencyError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Ошибка: ${state.message}', textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.read<CurrencyCubit>().loadRates();
+                    },
+                    child: const Text('Повторить'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            return const Center(child: Text('Нажмите "Обновить", чтобы загрузить курсы'));
+          }
+        },
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}.${date.month}.${date.year} ${date.hour}:${date.minute}';
+  }
+}
+
+===== features\currency\presentation\widgets\currency_dropdown.dart =====
+import 'package:flutter/material.dart';
+
+class CurrencyDropdown extends StatelessWidget {
+  final String selectedCurrency;
+  final List<String> currencies;
+  final ValueChanged<String?> onChanged;
+
+  const CurrencyDropdown({
+    super.key,
+    required this.selectedCurrency,
+    required this.currencies,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: selectedCurrency,
+      decoration: const InputDecoration(
+        labelText: 'Валюта',
+        border: OutlineInputBorder(),
+      ),
+      items: currencies.map((currency) {
+        return DropdownMenuItem<String>(
+          value: currency,
+          child: Text(currency),
+        );
+      }).toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+===== features\settings\data\datasources\settings_local_data_source.dart =====
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/user_settings.dart';
+
+abstract class ISettingsLocalDataSource {
+  Future<UserSettings?> getSettings();
+  Future<void> saveSettings(UserSettings settings);
+}
+
+class SettingsLocalDataSource implements ISettingsLocalDataSource {
+  final SharedPreferences prefs;
+
+  SettingsLocalDataSource(this.prefs);
+
+  @override
+  Future<UserSettings?> getSettings() async {
+    try {
+      final currency = prefs.getString('settings_currency') ?? 'RUB';
+      final darkMode = prefs.getBool('settings_darkMode') ?? false;
+      final notifications = prefs.getBool('settings_notifications') ?? true;
+      final language = prefs.getString('settings_language');
+      return UserSettings(
+        currency: currency,
+        darkMode: darkMode,
+        notificationsEnabled: notifications,
+        language: language,
+      );
+    } catch (e) {
+      throw CacheException('Failed to load settings: $e');
+    }
+  }
+
+  @override
+  Future<void> saveSettings(UserSettings settings) async {
+    try {
+      await prefs.setString('settings_currency', settings.currency);
+      await prefs.setBool('settings_darkMode', settings.darkMode);
+      await prefs.setBool('settings_notifications', settings.notificationsEnabled);
+      if (settings.language != null) {
+        await prefs.setString('settings_language', settings.language!);
+      } else {
+        await prefs.remove('settings_language');
+      }
+    } catch (e) {
+      throw CacheException('Failed to save settings: $e');
+    }
+  }
+}
+
+===== features\settings\data\repositories\settings_repository_impl.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/user_settings.dart';
+import '../../domain/repositories/i_settings_repository.dart';
+import '../datasources/settings_local_data_source.dart';
+
+class SettingsRepositoryImpl implements ISettingsRepository {
+  final ISettingsLocalDataSource local;
+
+  SettingsRepositoryImpl(this.local);
+
+  @override
+  Future<Either<Failure, UserSettings>> getSettings() async {
+    try {
+      final settings = await local.getSettings();
+      return Right(settings ?? const UserSettings());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveSettings(UserSettings settings) async {
+    try {
+      await local.saveSettings(settings);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+}
+
+===== features\settings\domain\entities\user_settings.dart =====
+class UserSettings {
+  final String currency;
+  final bool darkMode;
+  final bool notificationsEnabled;
+  final String? language;
+
+  const UserSettings({
+    this.currency = 'BYN',
+    this.darkMode = false,
+    this.notificationsEnabled = true,
+    this.language,
+  });
+
+  UserSettings copyWith({
+    String? currency,
+    bool? darkMode,
+    bool? notificationsEnabled,
+    String? language,
+  }) {
+    return UserSettings(
+      currency: currency ?? this.currency,
+      darkMode: darkMode ?? this.darkMode,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      language: language ?? this.language,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is UserSettings &&
+              runtimeType == other.runtimeType &&
+              currency == other.currency &&
+              darkMode == other.darkMode &&
+              notificationsEnabled == other.notificationsEnabled &&
+              language == other.language;
+
+  @override
+  int get hashCode => Object.hash(currency, darkMode, notificationsEnabled, language);
+}
+
+===== features\settings\domain\repositories\i_settings_repository.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../entities/user_settings.dart';
+
+abstract class ISettingsRepository {
+  Future<Either<Failure, UserSettings>> getSettings();
+  Future<Either<Failure, void>> saveSettings(UserSettings settings);
+}
+
+===== features\settings\domain\usecases\get_settings.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/user_settings.dart';
+import '../repositories/i_settings_repository.dart';
+
+class GetSettingsUseCase implements UseCase<UserSettings, NoParams> {
+  final ISettingsRepository repository;
+  const GetSettingsUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, UserSettings>> call(NoParams params) {
+    return repository.getSettings();
+  }
+}
+
+===== features\settings\domain\usecases\save_settings.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/user_settings.dart';
+import '../repositories/i_settings_repository.dart';
+
+class SaveSettingsParams {
+  final UserSettings settings;
+  const SaveSettingsParams(this.settings);
+}
+
+class SaveSettingsUseCase implements UseCase<void, SaveSettingsParams> {
+  final ISettingsRepository repository;
+  const SaveSettingsUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(SaveSettingsParams params) {
+    return repository.saveSettings(params.settings);
+  }
+}
+
+===== features\settings\presentation\cubit\settings_cubit.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'settings_state.dart';
+import '../../domain/usecases/get_settings.dart';
+import '../../domain/usecases/save_settings.dart';
+import '../../domain/entities/user_settings.dart';
+import '../../../../core/usecases/usecase.dart';
+
+class SettingsCubit extends Cubit<SettingsState> {
+  final GetSettingsUseCase getSettings;
+  final SaveSettingsUseCase saveSettingsUseCase;
+
+  SettingsCubit({
+    required this.getSettings,
+    required this.saveSettingsUseCase,
+  }) : super(SettingsInitial());
+
+  Future<void> loadSettings() async {
+    emit(SettingsLoading());
+    final result = await getSettings(NoParams());
+    result.fold(
+          (failure) => emit(SettingsError(failure.message)),
+          (settings) => emit(SettingsLoaded(settings)),
+    );
+  }
+
+  Future<void> saveSettings(UserSettings settings) async {
+    emit(SettingsLoading());
+    final result = await saveSettingsUseCase(SaveSettingsParams(settings));
+    result.fold(
+          (failure) => emit(SettingsError(failure.message)),
+          (_) => emit(SettingsSaved()),
+    );
+  }
+}
+
+===== features\settings\presentation\cubit\settings_state.dart =====
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/user_settings.dart';
+
+abstract class SettingsState extends Equatable {
+  const SettingsState();
+  @override
+  List<Object> get props => [];
+}
+
+class SettingsInitial extends SettingsState {}
+
+class SettingsLoading extends SettingsState {}
+
+class SettingsLoaded extends SettingsState {
+  final UserSettings settings;
+  const SettingsLoaded(this.settings);
+  @override
+  List<Object> get props => [settings];
+}
+
+class SettingsSaved extends SettingsState {}
+
+class SettingsError extends SettingsState {
+  final String message;
+  const SettingsError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\settings\presentation\screens\settings_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../cubit/settings_cubit.dart';
+import '../cubit/settings_state.dart';
+import '../../domain/entities/user_settings.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _currencyController;
+  late TextEditingController _languageController;
+  bool _darkMode = false;
+  bool _notifications = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currencyController = TextEditingController();
+    _languageController = TextEditingController();
+    context.read<SettingsCubit>().loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _currencyController.dispose();
+    _languageController.dispose();
+    super.dispose();
+  }
+
+  void _saveSettings(UserSettings currentSettings) {
+    final newSettings = currentSettings.copyWith(
+      currency: _currencyController.text.isNotEmpty ? _currencyController.text : currentSettings.currency,
+      darkMode: _darkMode,
+      notificationsEnabled: _notifications,
+      language: _languageController.text.isNotEmpty ? _languageController.text : currentSettings.language,
+    );
+    context.read<SettingsCubit>().saveSettings(newSettings);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Настройки')),
+      body: BlocConsumer<SettingsCubit, SettingsState>(
+        listener: (context, state) {
+          if (state is SettingsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+          if (state is SettingsSaved) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Настройки сохранены')),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is SettingsLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is SettingsLoaded) {
+            final settings = state.settings;
+            _currencyController.text = settings.currency;
+            _languageController.text = settings.language ?? '';
+            _darkMode = settings.darkMode;
+            _notifications = settings.notificationsEnabled;
+
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _currencyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Основная валюта (например, RUB)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _languageController,
+                    decoration: const InputDecoration(
+                      labelText: 'Язык (например, ru, en)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Тёмная тема'),
+                    value: _darkMode,
+                    onChanged: (value) {
+                      setState(() {
+                        _darkMode = value;
+                      });
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Уведомления'),
+                    value: _notifications,
+                    onChanged: (value) {
+                      setState(() {
+                        _notifications = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => _saveSettings(settings),
+                    child: const Text('Сохранить'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            return const Center(child: Text('Ошибка загрузки настроек'));
+          }
+        },
+      ),
+    );
+  }
+}
+
+===== features\settings\presentation\widgets\profile_tile.dart =====
+
+
+===== features\transactions\data\datasources\transaction_local_data_source.dart =====
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/transaction_model.dart';
+
+abstract class ITransactionLocalDataSource {
+  Future<List<TransactionModel>> getTransactions();
+  Future<void> saveTransactions(List<TransactionModel> transactions);
+}
+
+class TransactionLocalDataSource implements ITransactionLocalDataSource {
+  final SharedPreferences prefs;
+  static const String _key = 'transactions';
+
+  TransactionLocalDataSource(this.prefs);
+
+  @override
+  Future<List<TransactionModel>> getTransactions() async {
+    try {
+      final jsonString = prefs.getString(_key);
+      if (jsonString == null) return [];
+      final List<dynamic> list = jsonDecode(jsonString);
+      return list.map((e) => TransactionModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw CacheException('Failed to load transactions: $e');
+    }
+  }
+
+  @override
+  Future<void> saveTransactions(List<TransactionModel> transactions) async {
+    try {
+      final jsonString = jsonEncode(transactions.map((e) => e.toJson()).toList());
+      await prefs.setString(_key, jsonString);
+    } catch (e) {
+      throw CacheException('Failed to save transactions: $e');
+    }
+  }
+}
+
+===== features\transactions\data\datasources\transaction_remote_data_source.dart =====
+import 'package:dio/dio.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../models/transaction_model.dart';
+
+abstract class ITransactionRemoteDataSource {
+  Future<List<TransactionModel>> fetchTransactions();
+  Future<void> addTransaction(TransactionModel transaction);
+  Future<void> deleteTransaction(String id);
+  Future<void> updateTransaction(TransactionModel transaction);
+}
+
+class TransactionRemoteDataSource implements ITransactionRemoteDataSource {
+  final Dio dio;
+
+  TransactionRemoteDataSource(this.dio);
+
+  @override
+  Future<List<TransactionModel>> fetchTransactions() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return [
+      TransactionModel(
+        id: '1',
+        amount: 500.0,
+        categoryId: 'Зарплата',
+        date: DateTime.now().subtract(const Duration(days: 2)),
+        description: 'Зарплата за май',
+        type: 'income',
+      ),
+      TransactionModel(
+        id: '2',
+        amount: 150.0,
+        categoryId: 'Еда',
+        date: DateTime.now().subtract(const Duration(days: 1)),
+        description: 'Продукты',
+        type: 'expense',
+      ),
+      TransactionModel(
+        id: '3',
+        amount: 2000.0,
+        categoryId: 'Фриланс',
+        date: DateTime.now().subtract(const Duration(days: 5)),
+        description: 'Проект для клиента',
+        type: 'income',
+      ),
+      TransactionModel(
+        id: '4',
+        amount: 80.0,
+        categoryId: 'Транспорт',
+        date: DateTime.now().subtract(const Duration(hours: 3)),
+        description: 'Такси',
+        type: 'expense',
+      ),
+    ];
+  }
+
+  @override
+  Future<void> addTransaction(TransactionModel transaction) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    print('Transaction added (mock): ${transaction.toJson()}');
+    return;
+  }
+
+  @override
+  Future<void> deleteTransaction(String id) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    print('Transaction deleted (mock): $id');
+    return;
+  }
+
+  @override
+  Future<void> updateTransaction(TransactionModel transaction) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    print('Transaction updated (mock): ${transaction.toJson()}');
+    return;
+  }
+}
+
+===== features\transactions\data\models\transaction_model.dart =====
+import '../../domain/entities/transaction.dart';
+import 'package:BlueFin/features/categories/domain/entities/category.dart';
+
+class TransactionModel {
+  final String id;
+  final double amount;
+  final String categoryId;
+  final DateTime date;
+  final String description;
+  final String type;
+
+  TransactionModel({
+    required this.id,
+    required this.amount,
+    required this.categoryId,
+    required this.date,
+    required this.description,
+    required this.type,
+  });
+
+  factory TransactionModel.fromDomain(Transaction transaction) => TransactionModel(
+    id: transaction.id,
+    amount: transaction.amount,
+    categoryId: transaction.categoryId,
+    date: transaction.date,
+    description: transaction.description,
+    type: transaction.type == TransactionType.income ? 'income' : 'expense',
+  );
+
+  Transaction toDomain() => Transaction(
+    id: id,
+    amount: amount,
+    categoryId: categoryId,
+    date: date,
+    description: description,
+    type: type == 'income' ? TransactionType.income : TransactionType.expense,
+  );
+
+  factory TransactionModel.fromJson(Map<String, dynamic> json) => TransactionModel(
+    id: json['id'] as String,
+    amount: (json['amount'] as num).toDouble(),
+    categoryId: json['categoryId'] as String,
+    date: DateTime.parse(json['date'] as String),
+    description: json['description'] as String,
+    type: json['type'] as String,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'amount': amount,
+    'categoryId': categoryId,
+    'date': date.toIso8601String(),
+    'description': description,
+    'type': type,
+  };
+}
+
+===== features\transactions\data\repositories\transaction_repository_impl.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/transaction.dart';
+import '../../domain/repositories/i_transaction_repository.dart';
+import '../datasources/transaction_local_data_source.dart';
+import '../models/transaction_model.dart';
+
+class TransactionRepositoryImpl implements ITransactionRepository {
+  final ITransactionLocalDataSource local;
+
+  TransactionRepositoryImpl(this.local);
+
+  @override
+  Future<Either<Failure, List<Transaction>>> getTransactions() async {
+    try {
+      final list = await local.getTransactions();
+      return Right(list.map((e) => e.toDomain()).toList());
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> addTransaction(Transaction transaction) async {
+    try {
+      final model = TransactionModel.fromDomain(transaction);
+      final list = await local.getTransactions();
+      list.add(model);
+      await local.saveTransactions(list);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteTransaction(String id) async {
+    try {
+      final list = await local.getTransactions();
+      list.removeWhere((e) => e.id == id);
+      await local.saveTransactions(list);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  } 
+
+  @override
+  Future<Either<Failure, void>> updateTransaction(Transaction transaction) async {
+    try {
+      final model = TransactionModel.fromDomain(transaction);
+      final list = await local.getTransactions();
+      final index = list.indexWhere((e) => e.id == transaction.id);
+      if (index != -1) {
+        list[index] = model;
+        await local.saveTransactions(list);
+      }
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(CacheFailure(e.toString()));
+    }
+  }
+}
+
+===== features\transactions\domain\entities\transaction.dart =====
+enum TransactionType {income, expense}
+
+class Transaction {
+  final String id;
+  final double amount;
+  final String categoryId;
+  final DateTime date;
+  final String description;
+  final TransactionType type;
+
+  const Transaction({
+    required this.id,
+    required this.amount,
+    required this.categoryId,
+    required this.date,
+    required this.description,
+    required this.type,
+  });
+
+  Transaction copyWith({
+    String? id,
+    double? amount,
+    String? categoryId,
+    DateTime? date,
+    String? description,
+    TransactionType? type,
+  }) {
+    return Transaction(
+      id: id ?? this.id,
+      amount: amount ?? this.amount,
+      categoryId: categoryId ?? this.categoryId,
+      date: date ?? this.date,
+      description: description ?? this.description,
+      type: type ?? this.type,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is Transaction &&
+              runtimeType == other.runtimeType &&
+              id == other.id &&
+              amount == other.amount &&
+              categoryId == other.categoryId &&
+              date == other.date &&
+              description == other.description &&
+              type == other.type;
+
+  @override
+  int get hashCode => Object.hash(id, amount, categoryId, date, description, type);
+
+  @override
+  String toString() =>
+      'Transaction(id: $id, amount: $amount, category: $categoryId, date: $date, description: $description, type: $type)';
+}
+
+===== features\transactions\domain\repositories\i_transaction_repository.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../entities/transaction.dart';
+
+abstract class ITransactionRepository {
+  Future<Either<Failure, List<Transaction>>> getTransactions();
+  Future<Either<Failure, void>> addTransaction(Transaction transaction);
+  Future<Either<Failure, void>> deleteTransaction(String id);
+  Future<Either<Failure, void>> updateTransaction(Transaction transaction);
+}
+
+===== features\transactions\domain\usecases\add_transaction.dart =====
+import 'package:BlueFin/core/errors/failures.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+import 'package:BlueFin/features/transactions/domain/repositories/i_transaction_repository.dart';
+import 'package:BlueFin/features/balance/domain/repositories/i_balance_repository.dart';
+import 'package:dartz/dartz.dart';
+
+class AddTransactionParams {
+  final Transaction transaction;
+  const AddTransactionParams(this.transaction);
+}
+
+class AddTransactionUseCase implements UseCase<void, AddTransactionParams> {
+  final ITransactionRepository transactionRepository;
+  final IBalanceRepository balanceRepository;
+
+  AddTransactionUseCase({
+    required this.transactionRepository,
+    required this.balanceRepository,
+  });
+
+  @override
+  Future<Either<Failure, void>> call(AddTransactionParams params) async {
+    if (params.transaction.amount <= 0) {
+      return Left(ServerFailure('Сумма должна быть больше нуля'));
+    }
+
+    final addResult = await transactionRepository.addTransaction(params.transaction);
+    if (addResult.isLeft()) {
+      return addResult;
+    }
+
+    final balanceResult = await balanceRepository.getBalance();
+    return balanceResult.fold(
+          (failure) => Left(failure),
+          (currentBalance) async {
+        if (params.transaction.type == TransactionType.expense &&
+            !currentBalance.canSpend(params.transaction.amount)) {
+          return Left(ServerFailure('Недостаточно средств'));
+        }
+
+        final newBalance = params.transaction.type == TransactionType.income
+            ? currentBalance.addIncome(params.transaction.amount)
+            : currentBalance.addExpense(params.transaction.amount);
+
+        return balanceRepository.updateBalance(newBalance);
+      },
+    );
+  }
+}
+
+===== features\transactions\domain\usecases\delete_transaction.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../repositories/i_transaction_repository.dart';
+
+class DeleteTransactionParams {
+  final String id;
+  const DeleteTransactionParams(this.id);
+}
+
+class DeleteTransactionUseCase implements UseCase<void, DeleteTransactionParams> {
+  final ITransactionRepository repository;
+  const DeleteTransactionUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(DeleteTransactionParams params) {
+    return repository.deleteTransaction(params.id);
+  }
+}
+
+===== features\transactions\domain\usecases\get_transactions.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/transaction.dart';
+import '../repositories/i_transaction_repository.dart';
+
+class GetTransactionsUseCase implements UseCase<List<Transaction>, NoParams> {
+  final ITransactionRepository repository;
+  const GetTransactionsUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, List<Transaction>>> call(NoParams params) {
+    return repository.getTransactions();
+  }
+}
+
+===== features\transactions\domain\usecases\update_transaction.dart =====
+import 'package:dartz/dartz.dart';
+import '../../../../core/errors/failures.dart';
+import '../../../../core/usecases/usecase.dart';
+import '../entities/transaction.dart';
+import '../repositories/i_transaction_repository.dart';
+
+class UpdateTransactionParams {
+  final Transaction transaction;
+  const UpdateTransactionParams(this.transaction);
+}
+
+class UpdateTransactionUseCase implements UseCase<void, UpdateTransactionParams> {
+  final ITransactionRepository repository;
+  const UpdateTransactionUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, void>> call(UpdateTransactionParams params) {
+    return repository.updateTransaction(params.transaction);
+  }
+}
+
+===== features\transactions\presentation\bloc\transactions_bloc.dart =====
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'transactions_event.dart';
+import 'transactions_state.dart';
+import 'package:BlueFin/features/transactions/domain/usecases/get_transactions.dart';
+import 'package:BlueFin/features/transactions/domain/usecases/add_transaction.dart';
+import 'package:BlueFin/features/transactions/domain/usecases/delete_transaction.dart';
+import 'package:BlueFin/features/transactions/domain/usecases/update_transaction.dart';
+import 'package:BlueFin/core/usecases/usecase.dart';
+
+class TransactionsBloc extends Bloc<TransactionsEvent, TransactionsState> {
+  final GetTransactionsUseCase getTransactions;
+  final AddTransactionUseCase addTransaction;
+  final DeleteTransactionUseCase deleteTransaction;
+  final UpdateTransactionUseCase updateTransaction;
+
+  TransactionsBloc({
+    required this.getTransactions,
+    required this.addTransaction,
+    required this.deleteTransaction,
+    required this.updateTransaction,
+  }) : super(TransactionsInitial()) {
+    on<TransactionsLoadRequested>(_onLoad);
+    on<TransactionAddRequested>(_onAdd);
+    on<TransactionDeleteRequested>(_onDelete);
+    on<TransactionUpdateRequested>(_onUpdate);
+  }
+
+  Future<void> _onLoad(
+      TransactionsLoadRequested event,
+      Emitter<TransactionsState> emit,
+      ) async {
+    emit(TransactionsLoading());
+    final result = await getTransactions(NoParams());
+    result.fold(
+          (failure) => emit(TransactionsError(failure.message)),
+          (transactions) => emit(TransactionsLoaded(transactions)),
+    );
+  }
+
+  Future<void> _onAdd(
+      TransactionAddRequested event,
+      Emitter<TransactionsState> emit,
+      ) async {
+    emit(TransactionsLoading());
+    final result = await addTransaction(AddTransactionParams(event.transaction));
+    result.fold(
+          (failure) => emit(TransactionsError(failure.message)),
+          (_) {
+        add(TransactionsLoadRequested());
+      },
+    );
+  }
+
+  Future<void> _onDelete(
+      TransactionDeleteRequested event,
+      Emitter<TransactionsState> emit,
+      ) async {
+    emit(TransactionsLoading());
+    final result = await deleteTransaction(DeleteTransactionParams(event.id));
+    result.fold(
+          (failure) => emit(TransactionsError(failure.message)),
+          (_) {
+        add(TransactionsLoadRequested());
+      },
+    );
+  }
+
+  Future<void> _onUpdate(
+      TransactionUpdateRequested event,
+      Emitter<TransactionsState> emit,
+      ) async {
+    emit(TransactionsLoading());
+    final result = await updateTransaction(UpdateTransactionParams(event.transaction));
+    result.fold(
+          (failure) => emit(TransactionsError(failure.message)),
+          (_) {
+        add(TransactionsLoadRequested());
+      },
+    );
+  }
+}
+
+===== features\transactions\presentation\bloc\transactions_event.dart =====
+import 'package:equatable/equatable.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+
+abstract class TransactionsEvent extends Equatable {
+  const TransactionsEvent();
+  @override
+  List<Object> get props => [];
+}
+
+class TransactionsLoadRequested extends TransactionsEvent {}
+
+class TransactionAddRequested extends TransactionsEvent {
+  final Transaction transaction;
+  const TransactionAddRequested(this.transaction);
+  @override
+  List<Object> get props => [transaction];
+}
+
+class TransactionDeleteRequested extends TransactionsEvent {
+  final String id;
+  const TransactionDeleteRequested(this.id);
+  @override
+  List<Object> get props => [id];
+}
+
+class TransactionUpdateRequested extends TransactionsEvent {
+  final Transaction transaction;
+  const TransactionUpdateRequested(this.transaction);
+  @override
+  List<Object> get props => [transaction];
+}
+
+===== features\transactions\presentation\bloc\transactions_state.dart =====
+import 'package:equatable/equatable.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+
+abstract class TransactionsState extends Equatable {
+  const TransactionsState();
+  @override
+  List<Object> get props => [];
+}
+
+class TransactionsInitial extends TransactionsState {}
+
+class TransactionsLoading extends TransactionsState {}
+
+class TransactionsLoaded extends TransactionsState {
+  final List<Transaction> transactions;
+  const TransactionsLoaded(this.transactions);
+  @override
+  List<Object> get props => [transactions];
+}
+
+class TransactionsError extends TransactionsState {
+  final String message;
+  const TransactionsError(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+class TransactionOperationSuccess extends TransactionsState {
+  final String message;
+  const TransactionOperationSuccess(this.message);
+  @override
+  List<Object> get props => [message];
+}
+
+===== features\transactions\presentation\screens\add_edit_transaction_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
+import 'package:BlueFin/features/transactions/presentation/bloc/transactions_bloc.dart';
+import 'package:BlueFin/features/transactions/presentation/bloc/transactions_event.dart';
+import 'package:BlueFin/features/transactions/presentation/bloc/transactions_state.dart';
+import 'package:BlueFin/features/transactions/presentation/widgets/category_selector.dart';
+import 'package:BlueFin/features/transactions/presentation/widgets/date_picker_field.dart';
+import 'package:BlueFin/features/transactions/domain/entities/transaction.dart';
+
+import '../../../categories/presentation/bloc/categories_bloc.dart';
+import '../../../categories/presentation/bloc/categories_event.dart';
+import '../../../categories/presentation/widgets/category_dropdown.dart';
+
+class AddEditTransactionScreen extends StatefulWidget {
+  final Transaction? transaction;
+
+  const AddEditTransactionScreen({super.key, this.transaction});
+
+  @override
+  State<AddEditTransactionScreen> createState() => _AddEditTransactionScreenState();
+}
+
+class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _amountController;
+  late final TextEditingController _descriptionController;
+  late TransactionType _type;
+  late DateTime _date;
+  String? _selectedCategoryId;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<CategoriesBloc>().add(CategoryLoadRequested());
+    if (widget.transaction != null) {
+      _type = widget.transaction!.type;
+      _selectedCategoryId = widget.transaction!.categoryId;
+      _date = widget.transaction!.date;
+      _amountController = TextEditingController(text: widget.transaction!.amount.toString());
+      _descriptionController = TextEditingController(text: widget.transaction!.description);
+    } else {
+      _type = TransactionType.expense;
+      _selectedCategoryId = null;
+      _date = DateTime.now();
+      _amountController = TextEditingController();
+      _descriptionController = TextEditingController();
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      if (_selectedCategoryId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Выберите категорию')),
+        );
+        return;
+      }
+      final transaction = Transaction(
+        id: widget.transaction?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        amount: double.parse(_amountController.text),
+        categoryId: _selectedCategoryId!,
+        date: _date,
+        description: _descriptionController.text,
+        type: _type,
+      );
+      if (widget.transaction == null) {
+        context.read<TransactionsBloc>().add(TransactionAddRequested(transaction));
+      } else {
+        context.read<TransactionsBloc>().add(TransactionUpdateRequested(transaction));
+      }
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.transaction != null;
+    return Scaffold(
+      appBar: AppBar(title: Text(isEdit ? 'Редактировать' : 'Добавить транзакцию')),
+      body: BlocListener<TransactionsBloc, TransactionsState>(
+        listener: (context, state) {
+          if (state is TransactionsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                SegmentedButton<TransactionType>(
+                  segments: const [
+                    ButtonSegment(
+                      value: TransactionType.income,
+                      label: Text('Доход'),
+                      icon: Icon(Icons.arrow_upward),
+                    ),
+                    ButtonSegment(
+                      value: TransactionType.expense,
+                      label: Text('Расход'),
+                      icon: Icon(Icons.arrow_downward),
+                    ),
+                  ],
+                  selected: {_type},
+                  onSelectionChanged: (Set<TransactionType> newSelection) {
+                    setState(() {
+                      _type = newSelection.first;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                CategoryDropdown(
+                  selectedCategoryId: _selectedCategoryId,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategoryId = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Сумма',
+                    border: OutlineInputBorder(),
+                    prefixText: '₽ ',
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Введите сумму';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Некорректное число';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                DatePickerField(
+                  selectedDate: _date,
+                  onDateSelected: (newDate) {
+                    setState(() {
+                      _date = newDate;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Описание (необязательно)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                ElevatedButton(
+                  onPressed: _submit,
+                  child: Text(isEdit ? 'Сохранить' : 'Добавить'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+===== features\transactions\presentation\screens\transactions_list_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../categories/presentation/screens/categories_list_screen.dart';
+import '../bloc/transactions_bloc.dart';
+import '../bloc/transactions_event.dart';
+import '../bloc/transactions_state.dart';
+import '../widgets/transaction_tile.dart';
+import 'add_edit_transaction_screen.dart';
+
+class TransactionsListScreen extends StatelessWidget {
+  const TransactionsListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Транзакции'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.category),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CategoriesListScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<TransactionsBloc>().add(TransactionsLoadRequested());
+            },
+          ),
+        ],
+      ),
+      body: BlocConsumer<TransactionsBloc, TransactionsState>(
+        listener: (context, state) {
+          if (state is TransactionsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is TransactionsLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is TransactionsLoaded) {
+            if (state.transactions.isEmpty) {
+              return const Center(
+                child: Text('Нет транзакций. Добавьте первую!'),
+              );
+            }
+            return ListView.builder(
+              itemCount: state.transactions.length,
+              itemBuilder: (context, index) {
+                final transaction = state.transactions[index];
+                return TransactionTile(
+                  transaction: transaction,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddEditTransactionScreen(
+                          transaction: transaction,
+                        ),
+                      ),
+                    );
+                  },
+                  onDelete: () {
+                    _showDeleteConfirmation(context, transaction.id);
+                  },
+                );
+              },
+            );
+          } else {
+            return const Center(child: Text('Ошибка загрузки транзакций'));
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AddEditTransactionScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, String id) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Удалить транзакцию?'),
+        content: const Text('Это действие нельзя отменить.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<TransactionsBloc>().add(TransactionDeleteRequested(id));
+              Navigator.pop(context);
+            },
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+===== features\transactions\presentation\widgets\category_selector.dart =====
+import 'package:flutter/material.dart';
+
+class CategorySelector extends StatelessWidget {
+  final String selectedCategory;
+  final ValueChanged<String> onCategorySelected;
+  final List<String> categories;
+
+  const CategorySelector({
+    super.key,
+    required this.selectedCategory,
+    required this.onCategorySelected,
+    required this.categories,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: selectedCategory,
+      decoration: const InputDecoration(
+        labelText: 'Категория',
+        border: OutlineInputBorder(),
+      ),
+      items: categories.map((category) {
+        return DropdownMenuItem<String>(
+          value: category,
+          child: Text(category),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) onCategorySelected(value);
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Выберите категорию';
+        }
+        return null;
+      },
+    );
+  }
+}
+
+===== features\transactions\presentation\widgets\date_picker_field.dart =====
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class DatePickerField extends StatelessWidget {
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
+
+  const DatePickerField({
+    super.key,
+    required this.selectedDate,
+    required this.onDateSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      readOnly: true,
+      decoration: const InputDecoration(
+        labelText: 'Дата',
+        border: OutlineInputBorder(),
+        suffixIcon: Icon(Icons.calendar_today),
+      ),
+      controller: TextEditingController(
+        text: DateFormat('dd.MM.yyyy').format(selectedDate),
+      ),
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: selectedDate,
+          firstDate: DateTime(2000),
+          lastDate: DateTime.now(),
+        );
+        if (picked != null) {
+          onDateSelected(picked);
+        }
+      },
+    );
+  }
+}
+
+===== features\transactions\presentation\widgets\transaction_tile.dart =====
+import 'package:flutter/material.dart';
+import '../../domain/entities/transaction.dart';
+
+class TransactionTile extends StatelessWidget {
+  final Transaction transaction;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+
+  const TransactionTile({
+    super.key,
+    required this.transaction,
+    this.onTap,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isIncome = transaction.type == TransactionType.income;
+    final color = isIncome ? Colors.green : Colors.red;
+    final sign = isIncome ? '+' : '-';
+
+    return ListTile(
+      onTap: onTap,
+      leading: CircleAvatar(
+        backgroundColor: color.withOpacity(0.2),
+        child: Icon(
+          isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+          color: color,
+        ),
+      ),
+      title: Text(transaction.categoryId),
+      subtitle: Text(transaction.description),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$sign${transaction.amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.grey),
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+===== presentation\main_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../features/balance/presentation/screens/balance_screen.dart';
+import '../features/transactions/presentation/screens/transactions_list_screen.dart';
+import '../features/transactions/presentation/bloc/transactions_bloc.dart';
+import '../features/transactions/presentation/bloc/transactions_event.dart';
+import '../features/analytics/presentation/screens/analytics_screen.dart';
+import '../features/analytics/presentation/bloc/analytics_bloc.dart';
+import '../features/analytics/presentation/bloc/analytics_event.dart';
+import '../features/currency/presentation/screens/currency_converter_screen.dart';
+import '../features/currency/presentation/cubit/currency_cubit.dart';
+import '../features/settings/presentation/screens/settings_screen.dart';
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = const [
+    BalanceScreen(),
+    TransactionsListScreen(),
+    AnalyticsScreen(),
+    CurrencyConverterScreen(),
+    SettingsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+          if (index == 1) {
+            context.read<TransactionsBloc>().add(TransactionsLoadRequested());
+          } else if (index == 2) {
+            context.read<AnalyticsBloc>().add(AnalyticsLoadRequested());
+          } else if (index == 3) {
+            context.read<CurrencyCubit>().loadRates();
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet),
+            label: 'Баланс',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.list),
+            label: 'Транзакции',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.show_chart),
+            label: 'Аналитика',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.currency_exchange),
+            label: 'Валюты',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Настройки',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+===== router\app_router.dart =====
+
+
+===== router\routes.dart =====
+
+

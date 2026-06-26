@@ -1,0 +1,39 @@
+name: BlueFin
+description: Financial app with clean architecture
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # DI & State
+  get_it: ^7.6.7
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+  dartz: ^0.10.1
+
+  # Networking
+  dio: ^5.4.1
+  connectivity_plus: ^6.0.3
+
+  # Storage
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.0.0
+
+  # Utils
+  intl: ^0.18.1
+  fl_chart: ^0.68.0   # для графиков
+  supabase_flutter: ^2.15.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.3
+  bloc_test: ^9.1.5
+
+flutter:
+  uses-material-design: true
