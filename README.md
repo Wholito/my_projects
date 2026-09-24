@@ -1,15 +1,17 @@
-# my_projects
+# My Projects
 
-Репозиторий с личными проектами.
+A repository containing my personal projects.
 
-| Проект | Описание |
-|--------|----------|
-| [AutoPartsCatalog](AutoPartsCatalog/) | Каталог автозапчастей, Firebase, избранное |
-| [WeatherApp](WeatherApp/) | прогноз погоды, избранные города, RU/EN |
-| [Location Guess](Shadow_Find/) |  |
-| [Guess character](pisarick_guessr/) | Онлайн-игра с друзьями |
-| [FInancial tracker](BlueFin/) | Финансовое приложение с чистой архитектурой
+| Project                                     | Description                                                      |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| [Auto Parts Catalog](AutoPartsCatalog/)     | Auto parts catalog with Firebase integration and favorites       |
+| [Weather Forecast App](WeatherApp/)         | Weather forecast app with favorite cities and RU/EN localization |
+| [Location Guessing Game](Shadow_Find/)      | Location-based guessing game                                     |
+| [Character Guessing Game](pisarick_guessr/) | Online multiplayer character guessing game                       |
+| [Personal Finance Tracker](BlueFin/)        | Personal finance tracker built with clean architecture           |
 
-Каждый проект независим: свой `pubspec.yaml` / Gradle, сборка и настройки Firebase.
+Each project is independent and has its own `pubspec.yaml` / Gradle configuration, build settings, and Firebase configuration.
 
-Файлы для установки в релизе
+## Release Files
+
+Installation files for the released versions of the projects.
