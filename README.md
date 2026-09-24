@@ -5,10 +5,10 @@
 | Проект | Описание |
 |--------|----------|
 | [AutoPartsCatalog](AutoPartsCatalog/) | Каталог автозапчастей, Firebase, избранное |
-| [WeatherApp](WeatherApp/) | Погода: прогноз, избранные города, RU/EN |
-| [Shadow_Find](Shadow_Find/) | Shadow Find — geo-игра с картой и друзьями |
-| [Pisarick_guessr](pisarick_guessr/) | Онлайн-игра с друзьями |
-| [BlueFin](BlueFin/) | Финансовое приложение с чистой архитектурой
+| [WeatherApp](WeatherApp/) | прогноз погоды, избранные города, RU/EN |
+| [Location Guess](Shadow_Find/) |  |
+| [Guess character](pisarick_guessr/) | Онлайн-игра с друзьями |
+| [FInancial tracker](BlueFin/) | Финансовое приложение с чистой архитектурой
 
 Каждый проект независим: свой `pubspec.yaml` / Gradle, сборка и настройки Firebase.
 
